@@ -1,0 +1,392 @@
+{
+  "panel": {
+    "rows": 13859,
+    "posts": 159,
+    "posts_by_tier": {
+      "andrew_confirmed": 10,
+      "edw_taxonomy": 143,
+      "unified_name": 6
+    },
+    "obs_from": "2025-09-18",
+    "obs_to": "2026-10-07"
+  },
+  "postflight_posts": 146,
+  "paid_share_of_public": {
+    "n": 146,
+    "median": 0.9409351932765116,
+    "q25": 0.6596673572352544,
+    "q75": 0.9850212772090745
+  },
+  "metric_match": {
+    "instagram_side": {
+      "Impressions": {
+        "n": 146,
+        "median": 1.0652498948621254,
+        "q25": 1.0133375352679874,
+        "q75": 1.1530681831963836
+      },
+      "Reach": {
+        "n": 146,
+        "median": 1.1472159684424679,
+        "q25": 1.0474213589079873,
+        "q75": 1.3051727656884098
+      },
+      "Video plays (starts)": {
+        "n": 146,
+        "median": 1.1451587243915435,
+        "q25": 1.078454166334661,
+        "q75": 1.3366244941423855
+      },
+      "2-second plays": {
+        "n": 20,
+        "median": 51.8055640950629,
+        "q25": 4.325309875118654,
+        "q75": 650.1887953904825
+      },
+      "3-second video views": {
+        "n": 146,
+        "median": 5.24724747712812,
+        "q25": 3.136829792959535,
+        "q75": 11.684571030526934
+      },
+      "ThruPlays": {
+        "n": 145,
+        "median": 36.07940100992513,
+        "q25": 10.035219192668514,
+        "q75": 126.88300220750551
+      },
+      "25% watched": {
+        "n": 140,
+        "median": 16.69161497688851,
+        "q25": 7.198113545309843,
+        "q75": 50.78288331214145
+      },
+      "100% watched": {
+        "n": 140,
+        "median": 110.19292801107522,
+        "q25": 29.818093440269458,
+        "q75": 363.89966188411574
+      }
+    },
+    "facebook_side": {
+      "Impressions": {
+        "n": 156,
+        "median": 0.8154077782932573,
+        "q25": 0.8021978021978022,
+        "q75": 0.9611767186840995
+      },
+      "Reach": {
+        "n": 156,
+        "median": 0.8299891298536985,
+        "q25": 0.8021978021978022,
+        "q75": 1.041924791404732
+      },
+      "Video plays (starts)": {
+        "n": 156,
+        "median": 1.0833049241132915,
+        "q25": 1.0788964686533629,
+        "q75": 1.0987839757829518
+      },
+      "2-second plays": {
+        "n": 0,
+        "median": NaN,
+        "q25": NaN,
+        "q75": NaN
+      },
+      "3-second video views": {
+        "n": 156,
+        "median": 2.2129043990695045,
+        "q25": 2.081910423743966,
+        "q75": 2.7037037037037037
+      },
+      "ThruPlays": {
+        "n": 156,
+        "median": 7.502379930051709,
+        "q25": 4.294942136566923,
+        "q75": 12.166666666666666
+      },
+      "25% watched": {
+        "n": 156,
+        "median": 5.756567405843013,
+        "q25": 4.371738314248169,
+        "q75": 10.428571428571429
+      },
+      "100% watched": {
+        "n": 156,
+        "median": 17.301399139264817,
+        "q25": 16.77231241994793,
+        "q75": 73.0
+      }
+    }
+  },
+  "socapi_postflight": {
+    "rows": 156,
+    "posts": 20
+  },
+  "preboost_posts": 117,
+  "preboost_public_equals_optin": {
+    "n": 117,
+    "median": 1.0012794268167862,
+    "q25": 0.999000199960008,
+    "q75": 1.009410524730859
+  },
+  "production_function_by_confidence": {
+    "high": {
+      "posts": 65,
+      "median_error": 0.04833891554268127,
+      "median_abs_error": 0.08647723016000428,
+      "within_10pct": 0.6153846153846154,
+      "within_25pct": 0.9076923076923077,
+      "within_50pct": 0.9538461538461539,
+      "negative_organic": 0.0
+    },
+    "medium": {
+      "posts": 20,
+      "median_error": -0.025016127546096452,
+      "median_abs_error": 0.12512556687156864,
+      "within_10pct": 0.4,
+      "within_25pct": 0.9,
+      "within_50pct": 0.9,
+      "negative_organic": 0.0
+    },
+    "low": {
+      "posts": 32,
+      "median_error": 0.008610688612192259,
+      "median_abs_error": 0.3049701793364954,
+      "within_10pct": 0.21875,
+      "within_25pct": 0.40625,
+      "within_50pct": 0.75,
+      "negative_organic": 0.0
+    }
+  },
+  "recipes": {
+    "public - paid IG Impressions": {
+      "posts": 146,
+      "median_error": 0.293280779461106,
+      "median_abs_error": 0.7012221482399752,
+      "within_10pct": 0.1917808219178082,
+      "within_25pct": 0.3082191780821918,
+      "within_50pct": 0.4589041095890411,
+      "negative_organic": 0.1095890410958904
+    },
+    "public - paid IG Reach": {
+      "posts": 146,
+      "median_error": 0.8534682695805408,
+      "median_abs_error": 1.122338811592071,
+      "within_10pct": 0.14383561643835616,
+      "within_25pct": 0.2671232876712329,
+      "within_50pct": 0.3835616438356164,
+      "negative_organic": 0.06164383561643835
+    },
+    "public - paid IG Video plays (starts)": {
+      "posts": 146,
+      "median_error": 1.1869834868877471,
+      "median_abs_error": 1.2770077410111011,
+      "within_10pct": 0.1095890410958904,
+      "within_25pct": 0.23972602739726026,
+      "within_50pct": 0.3424657534246575,
+      "negative_organic": 0.0273972602739726
+    },
+    "public - paid IG 2-second plays": {
+      "posts": 146,
+      "median_error": 14.748369725966242,
+      "median_abs_error": 14.748369725966242,
+      "within_10pct": 0.0684931506849315,
+      "within_25pct": 0.0821917808219178,
+      "within_50pct": 0.1232876712328767,
+      "negative_organic": 0.0
+    },
+    "public - paid IG 3-second video views": {
+      "posts": 146,
+      "median_error": 12.68400878532396,
+      "median_abs_error": 12.68400878532396,
+      "within_10pct": 0.06164383561643835,
+      "within_25pct": 0.08904109589041095,
+      "within_50pct": 0.1506849315068493,
+      "negative_organic": 0.0
+    },
+    "public - paid IG ThruPlays": {
+      "posts": 146,
+      "median_error": 15.552981661828046,
+      "median_abs_error": 15.552981661828046,
+      "within_10pct": 0.06164383561643835,
+      "within_25pct": 0.07534246575342465,
+      "within_50pct": 0.13013698630136986,
+      "negative_organic": 0.0
+    },
+    "public - paid IG 25% watched": {
+      "posts": 146,
+      "median_error": 13.817669649835153,
+      "median_abs_error": 13.817669649835153,
+      "within_10pct": 0.06164383561643835,
+      "within_25pct": 0.07534246575342465,
+      "within_50pct": 0.136986301369863,
+      "negative_organic": 0.0
+    },
+    "public - paid IG 100% watched": {
+      "posts": 146,
+      "median_error": 15.654058134955921,
+      "median_abs_error": 15.654058134955921,
+      "within_10pct": 0.06164383561643835,
+      "within_25pct": 0.07534246575342465,
+      "within_50pct": 0.1095890410958904,
+      "negative_organic": 0.0
+    },
+    "public - k x paid IG impressions (k fitted on other posts)": {
+      "posts": 146,
+      "median_error": -6.882095081231157e-05,
+      "median_abs_error": 0.9044646215633699,
+      "within_10pct": 0.2328767123287671,
+      "within_25pct": 0.3561643835616438,
+      "within_50pct": 0.4246575342465753,
+      "negative_organic": 0.3356164383561644
+    },
+    "SocAPI total - all paid video plays (naive)": {
+      "posts": 20,
+      "median_error": 3.2995927744232825,
+      "median_abs_error": 3.2995927744232825,
+      "within_10pct": 0.15,
+      "within_25pct": 0.2,
+      "within_50pct": 0.2,
+      "negative_organic": 0.0
+    },
+    "SocAPI total - all paid impressions (naive)": {
+      "posts": 20,
+      "median_error": -0.9712090464422967,
+      "median_abs_error": 2.693378352765202,
+      "within_10pct": 0.2,
+      "within_25pct": 0.2,
+      "within_50pct": 0.25,
+      "negative_organic": 0.5
+    },
+    "SocAPI total - FB cross-post - IG impressions - FB video plays (best mix)": {
+      "posts": 20,
+      "median_error": 3.180364665693295,
+      "median_abs_error": 3.8268926657569233,
+      "within_10pct": 0.15,
+      "within_25pct": 0.2,
+      "within_50pct": 0.2,
+      "negative_organic": 0.05
+    },
+    "pre-boost public read (no adjustment)": {
+      "posts": 117,
+      "median_error": -0.13210438335809807,
+      "median_abs_error": 0.16099681544760652,
+      "within_10pct": 0.37606837606837606,
+      "within_25pct": 0.6324786324786325,
+      "within_50pct": 0.8461538461538461,
+      "negative_organic": 0.0
+    },
+    "pre-boost read x flat growth (fitted on other posts)": {
+      "posts": 117,
+      "median_error": -0.0006399509619132478,
+      "median_abs_error": 0.13815219211736957,
+      "within_10pct": 0.3333333333333333,
+      "within_25pct": 0.717948717948718,
+      "within_50pct": 0.8547008547008547,
+      "negative_organic": 0.0
+    },
+    "pre-boost read x organic curve (no fitting on these posts)": {
+      "posts": 117,
+      "median_error": 0.04661357500397974,
+      "median_abs_error": 0.11532084189298568,
+      "within_10pct": 0.46153846153846156,
+      "within_25pct": 0.7692307692307693,
+      "within_50pct": 0.8888888888888888,
+      "negative_organic": 0.0
+    },
+    "production function: reconcile/estimate.py": {
+      "posts": 117,
+      "median_error": 0.03910489259608054,
+      "median_abs_error": 0.11532025785214649,
+      "within_10pct": 0.4700854700854701,
+      "within_25pct": 0.7692307692307693,
+      "within_50pct": 0.8888888888888888,
+      "negative_organic": 0.0
+    }
+  },
+  "campaign_level": {
+    "subtraction: public - k x IG impressions": {
+      "group_size": 10,
+      "median_error": 0.04687656616266023,
+      "q25": -0.10849985231550577,
+      "q75": 0.29427225740464014,
+      "within_25pct": 0.5895
+    },
+    "pre-boost read x organic curve": {
+      "group_size": 10,
+      "median_error": 0.03299752088514418,
+      "q25": -0.05990192143710904,
+      "q75": 0.08383456504470832,
+      "within_25pct": 0.9515
+    }
+  },
+  "andrew_confirmed": {
+    "posts": 10,
+    "post_days": 100,
+    "public - paid IG impressions": {
+      "posts": 100,
+      "median_error": -0.5906483844620966,
+      "median_abs_error": 0.793063274513273,
+      "within_10pct": 0.16,
+      "within_25pct": 0.3,
+      "within_50pct": 0.43,
+      "negative_organic": 0.47
+    },
+    "paid_share_of_public": {
+      "n": 100,
+      "median": 0.9469385004071526,
+      "q25": 0.6828314653268684,
+      "q75": 0.9690792391769509
+    },
+    "socapi_days": 13
+  },
+  "timing_in_flight": {
+    "post_days": 7961,
+    "paid through same day": {
+      "posts": 7961,
+      "median_error": 0.48956258568509275,
+      "median_abs_error": 0.8403919801757153,
+      "within_10pct": 0.16505464137671147,
+      "within_25pct": 0.26717749026504206,
+      "within_50pct": 0.4106268056776787,
+      "negative_organic": 0.07310639366913704
+    },
+    "paid through day before": {
+      "posts": 7961,
+      "median_error": 0.6891649743160913,
+      "median_abs_error": 1.011605873993368,
+      "within_10pct": 0.1553824896369803,
+      "within_25pct": 0.24607461374199222,
+      "within_50pct": 0.3870116819495038,
+      "negative_organic": 0.04270820248712473
+    }
+  },
+  "error_by_paid_share": [
+    {
+      "paid_share": "<50%",
+      "posts": 24,
+      "median_abs_error": 0.06503470568845021
+    },
+    {
+      "paid_share": "50-80%",
+      "posts": 23,
+      "median_abs_error": 0.2004294451915152
+    },
+    {
+      "paid_share": "80-90%",
+      "posts": 16,
+      "median_abs_error": 0.4383613289170831
+    },
+    {
+      "paid_share": "90-95%",
+      "posts": 18,
+      "median_abs_error": 0.8506572264236869
+    },
+    {
+      "paid_share": ">95%",
+      "posts": 65,
+      "median_abs_error": 3.8752939595511657
+    }
+  ]
+}

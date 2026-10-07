@@ -34,8 +34,28 @@ separate organic from paid views where evidence exists). The caveats below must 
   + paid FB plays 1.51M (×1.07 in SocAPI). Components add up within 7%.
 - Opt-in same-day ratio: private and public reads come from the same observation day (staleness 0 days for all 1,422 posts checked).
 
+### Phase 2 checks (Tom's subtraction question, 2026-10-07)
+- **Re-run reproducibility:** `detector/train_eval.py` was re-run to save train out-of-fold scores. Test scores match the
+  first run to 2.2e-16 and the report JSON is identical. No model, feature or threshold changed after the test was seen.
+- **Grain:** reconciliation panel = one row per (post, observation day): 13,859 rows, 0 duplicate post-days, 159 posts.
+  Post-level errors use one read per post (the latest read at least 2 days after the last ad day).
+- **Truth:** Instagram opt-in views. Before the first ad day, opt-in / public = 1.001 (117 posts), so opt-in is organic.
+- **No fitting on scored posts:** the organic curve is built from unboosted posts only; fitted factors use leave-one-out.
+- **In-sample warning fixed:** the first curve back-test reused the posts that built the curve. A creator-split version
+  (fit on half the creators, test on the other half) gives the same picture (Instagram day-7 read 8.3% vs 10.0% error).
+- **Production function check:** `reconcile/estimate.py` on the 117 boosted posts reproduces the analysis
+  (11.5% typical error, 77% within 25%). Confidence tiers: high 8.6% (65 posts), medium 12.5% (20), low 30.5% (32).
+- **Gold check (Andrew's tag, `sql/08`):** the Meta ad-name rule finds 21 of 21 tagged posts; the TikTok Spark link
+  finds 0 of 3 tagged campaign posts. One TikTok test "false positive" is a tagged paid post (label error, model right).
+- **Cluster bootstrap:** classification intervals resample whole creators (1,000 draws), so they are wider than row bootstrap.
+- **SQL logic check:** `sql/05` was run read-only in Snowflake on 2026-10-07; tier counts and pre-boost coverage are in
+  `results/organic_coverage.json`.
+
 ### Required caveats for stakeholders
 - Precision and recall are measured against labels that miss some boosts; treat precision as a lower bound.
-- Organic estimates for boosted Instagram posts without opt-in use a 1.14 factor (median, IQR 1.08-1.24), not a platform rule.
-- TikTok organic views for boosted posts are a range (pre-boost read to public minus paid plays), not one number.
+- Do not use "public - paid metric" per post. Use opt-in when it exists, else the pre-boost read x organic curve.
+  The 1.14 factor from phase 1 is retired: impressions match best (1.07x), but subtraction still fails per post.
+- TikTok organic after a boost is UNVERIFIED: opt-in includes Spark Ad views, so there is no organic truth. The curve
+  method is back-tested only on unboosted TikTok posts.
+- Boosts that start before the first public read (12% of boosted Instagram posts, 24% of TikTok) cannot be separated.
 - YouTube cannot be reconciled: no ad-to-video link exists in the warehouse.

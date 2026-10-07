@@ -1,0 +1,122 @@
+{
+ "source": "sql/05_boost_flags.sql, run 2026-10-07 (Snowflake query 01c793b6-0013-780b-0004-060222aec92e)",
+ "scope": "all in-feed Instagram / TikTok campaign posts in BIRA with any paid evidence (all publish dates in BIRA)",
+ "rule": "measured_optin = Instagram opt-in views; est_* = pre-boost public read x organic curve, confidence by age of the pre-boost read (high >= day 14, medium day 7-13, low < day 7); not_separable = no public read before the boost start",
+ "by_evidence": [
+  {
+   "platform": "Instagram",
+   "evidence": "CONFIRMED_AD_LINK",
+   "posts": 280,
+   "measured_optin": 198,
+   "est_high": 6,
+   "est_medium": 7,
+   "est_low": 20,
+   "not_separable": 49
+  },
+  {
+   "platform": "Instagram",
+   "evidence": "CONFIRMED_PAID_TAG",
+   "posts": 19,
+   "measured_optin": 13,
+   "est_high": 0,
+   "est_medium": 1,
+   "est_low": 4,
+   "not_separable": 1
+  },
+  {
+   "platform": "Instagram",
+   "evidence": "LOGGED_PAID_DATE_ONLY",
+   "posts": 565,
+   "measured_optin": 121,
+   "est_high": 225,
+   "est_medium": 46,
+   "est_low": 67,
+   "not_separable": 106
+  },
+  {
+   "platform": "Instagram",
+   "evidence": "MEASURED_OPTIN_GAP",
+   "posts": 1737,
+   "measured_optin": 1737,
+   "est_high": 0,
+   "est_medium": 0,
+   "est_low": 0,
+   "not_separable": 0
+  },
+  {
+   "platform": "Instagram",
+   "evidence": "MEASURED_SOCAPI_GAP",
+   "posts": 345,
+   "measured_optin": 29,
+   "est_high": 41,
+   "est_medium": 31,
+   "est_low": 47,
+   "not_separable": 197
+  },
+  {
+   "platform": "Tiktok",
+   "evidence": "CONFIRMED_AD_LINK",
+   "posts": 802,
+   "measured_optin": 0,
+   "est_high": 218,
+   "est_medium": 140,
+   "est_low": 224,
+   "not_separable": 220
+  },
+  {
+   "platform": "Tiktok",
+   "evidence": "CONFIRMED_PAID_TAG",
+   "posts": 3,
+   "measured_optin": 0,
+   "est_high": 3,
+   "est_medium": 0,
+   "est_low": 0,
+   "not_separable": 0
+  },
+  {
+   "platform": "Tiktok",
+   "evidence": "LOGGED_PAID_DATE_ONLY",
+   "posts": 288,
+   "measured_optin": 0,
+   "est_high": 73,
+   "est_medium": 58,
+   "est_low": 110,
+   "not_separable": 47
+  }
+ ],
+ "totals": {
+  "Instagram": {
+   "posts": 2946,
+   "measured_optin": 2098,
+   "est_high": 272,
+   "est_medium": 85,
+   "est_low": 138,
+   "not_separable": 353
+  },
+  "Tiktok": {
+   "posts": 1093,
+   "measured_optin": 0,
+   "est_high": 294,
+   "est_medium": 198,
+   "est_low": 334,
+   "not_separable": 267
+  }
+ },
+ "evidence_tiers_all_posts": {
+  "source": "sql/05_boost_flags.sql, run 2026-10-07 (Snowflake query 01c793b4-0013-780b-0004-060222aec656)",
+  "Instagram": {
+   "CONFIRMED_PAID_TAG": 19,
+   "CONFIRMED_AD_LINK": 280,
+   "MEASURED_OPTIN_GAP": 1737,
+   "MEASURED_SOCAPI_GAP": 345,
+   "LOGGED_PAID_DATE_ONLY": 565,
+   "NO_PAID_EVIDENCE": 20576
+  },
+  "Tiktok": {
+   "CONFIRMED_PAID_TAG": 3,
+   "CONFIRMED_AD_LINK": 802,
+   "LOGGED_PAID_DATE_ONLY": 288,
+   "NO_PAID_EVIDENCE": 16811
+  }
+ }
+}

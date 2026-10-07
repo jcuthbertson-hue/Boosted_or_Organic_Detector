@@ -1,0 +1,165 @@
+{
+  "tiktok_posts": 512,
+  "tiktok_metric_match": {
+    "Video plays (starts)": {
+      "n": 512,
+      "median": 1.1659573158605578,
+      "q25": 1.0770399542997118,
+      "q75": 1.467995883637585
+    },
+    "Impressions": {
+      "n": 512,
+      "median": 1.148264471322308,
+      "q25": 1.0672224486766355,
+      "q75": 1.4315527308425313
+    },
+    "2-second plays": {
+      "n": 512,
+      "median": 6.102797414818941,
+      "q25": 3.5277934608886587,
+      "q75": 12.668166248611264
+    }
+  },
+  "tiktok_optin_equals_public": {
+    "n": 142,
+    "median": 0.9998953011258731,
+    "q25": 0.9984522680067749,
+    "q75": 1.0005272815965227
+  },
+  "tiktok_paid_share_of_public": {
+    "n": 512,
+    "median": 0.8289149990085916,
+    "q25": 0.6254961126373627,
+    "q75": 0.9062235617321267
+  },
+  "tiktok_subtraction_vs_curve": {
+    "subtraction_negative_share": 0.005859375,
+    "subtraction_below_preboost_read_share": 0.005859375,
+    "subtraction_over_curve": {
+      "n": 512,
+      "median": 5.18974213090725,
+      "q25": 1.7987845503246753,
+      "q75": 51.873675266688224
+    }
+  },
+  "curve_backtest_unboosted": {
+    "Instagram": {
+      "read on day 3 -> predict day 30": {
+        "posts": 2016,
+        "median_error": 0.062104884643017944,
+        "median_abs_error": 0.18009649901476935,
+        "within_10pct": 0.28273809523809523,
+        "within_25pct": 0.6681547619047619,
+        "within_50pct": 0.9122023809523809,
+        "negative_organic": 0.0
+      },
+      "read on day 7 -> predict day 30": {
+        "posts": 2080,
+        "median_error": 0.02886794223227021,
+        "median_abs_error": 0.10020782739495086,
+        "within_10pct": 0.49903846153846154,
+        "within_25pct": 0.8865384615384615,
+        "within_50pct": 0.948076923076923,
+        "negative_organic": 0.0
+      },
+      "read on day 14 -> predict day 30": {
+        "posts": 2157,
+        "median_error": 0.012631564789723463,
+        "median_abs_error": 0.04842563623776587,
+        "within_10pct": 0.8321743161798795,
+        "within_25pct": 0.9221140472878998,
+        "within_50pct": 0.9624478442280946,
+        "negative_organic": 0.0
+      }
+    },
+    "Tiktok": {
+      "read on day 3 -> predict day 30": {
+        "posts": 1341,
+        "median_error": 0.12654852978611944,
+        "median_abs_error": 0.312824944058956,
+        "within_10pct": 0.1662938105891126,
+        "within_25pct": 0.4034302759134974,
+        "within_50pct": 0.6942580164056674,
+        "negative_organic": 0.0
+      },
+      "read on day 7 -> predict day 30": {
+        "posts": 1352,
+        "median_error": 0.06310564749714137,
+        "median_abs_error": 0.20900749742282562,
+        "within_10pct": 0.2470414201183432,
+        "within_25pct": 0.5931952662721893,
+        "within_50pct": 0.9674556213017751,
+        "negative_organic": 0.0
+      },
+      "read on day 14 -> predict day 30": {
+        "posts": 1359,
+        "median_error": 0.03415584815311906,
+        "median_abs_error": 0.10373107502880267,
+        "within_10pct": 0.4775570272259014,
+        "within_25pct": 0.9389256806475349,
+        "within_50pct": 0.9882266372332598,
+        "negative_organic": 0.0
+      }
+    }
+  },
+  "curve_backtest_unboosted_creator_split": {
+    "Instagram": {
+      "read on day 3 -> predict day 30": {
+        "posts": 2016,
+        "median_error": -0.001786039041205635,
+        "median_abs_error": 0.14965159883208745,
+        "within_10pct": 0.34424603174603174,
+        "within_25pct": 0.7058531746031746,
+        "within_50pct": 0.904265873015873,
+        "negative_organic": 0.0
+      },
+      "read on day 7 -> predict day 30": {
+        "posts": 2080,
+        "median_error": 0.0007278759890966908,
+        "median_abs_error": 0.08304838202968738,
+        "within_10pct": 0.5725961538461538,
+        "within_25pct": 0.8745192307692308,
+        "within_50pct": 0.9456730769230769,
+        "negative_organic": 0.0
+      },
+      "read on day 14 -> predict day 30": {
+        "posts": 2157,
+        "median_error": -0.0002702725294443512,
+        "median_abs_error": 0.04176906888789495,
+        "within_10pct": 0.8103847936949466,
+        "within_25pct": 0.9193324061196105,
+        "within_50pct": 0.961984237366713,
+        "negative_organic": 0.0
+      }
+    },
+    "Tiktok": {
+      "read on day 3 -> predict day 30": {
+        "posts": 1341,
+        "median_error": -0.07611013892094504,
+        "median_abs_error": 0.300938320838065,
+        "within_10pct": 0.17375093214019388,
+        "within_25pct": 0.42580164056674125,
+        "within_50pct": 0.7822520507084265,
+        "negative_organic": 0.0
+      },
+      "read on day 7 -> predict day 30": {
+        "posts": 1352,
+        "median_error": -0.055221905355467005,
+        "median_abs_error": 0.18896084624968895,
+        "within_10pct": 0.2655325443786982,
+        "within_25pct": 0.6427514792899408,
+        "within_50pct": 0.9578402366863905,
+        "negative_organic": 0.0
+      },
+      "read on day 14 -> predict day 30": {
+        "posts": 1359,
+        "median_error": -0.03221315933957187,
+        "median_abs_error": 0.09076322813967816,
+        "within_10pct": 0.5452538631346578,
+        "within_25pct": 0.9109639440765268,
+        "within_50pct": 0.9852832965415746,
+        "negative_organic": 0.0
+      }
+    }
+  }
+}

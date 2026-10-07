@@ -176,8 +176,12 @@ def run_platform(d, platform, report):
                  "train_pub_to": r["train"]["pub_to"]}, f"models/boost_detector_{platform.lower()}.joblib")
     test_out = test[["psrk", "platform", "org", "pub", "label", "pos_source_ad"]].copy()
     test_out["p_boost"] = p_test
+    # TRAIN scores for the full metric report (detector/evaluate.py): out-of-fold (creator-grouped CV) and in-sample
+    train_out = train[["psrk", "platform", "org", "pub", "label", "pos_source_ad"]].copy()
+    train_out["p_boost_oof"] = oof_by[best_name]
+    train_out["p_boost_in_sample"] = p_train_in
     report[platform] = r
-    return test_out
+    return test_out, train_out
 
 
 def main():
@@ -185,7 +189,8 @@ def main():
     d = build(load())
     report = {"test_cutoff": str(TEST_CUTOFF.date()), "features": FEATURES, "label_only_columns": LABEL_ONLY}
     outs = [run_platform(d, p, report) for p in ["Tiktok", "Instagram"]]
-    pd.concat(outs).to_csv("results/test_predictions.csv", index=False)
+    pd.concat([o[0] for o in outs]).to_csv("results/test_predictions.csv", index=False)
+    pd.concat([o[1] for o in outs]).to_csv("results/train_oof_predictions.csv", index=False)
 
     def fmt(x):
         return {k: (round(v, 4) if isinstance(v, float) else v) for k, v in x.items()}

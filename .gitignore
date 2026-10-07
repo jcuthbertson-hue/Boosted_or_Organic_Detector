@@ -3,6 +3,7 @@ data/
 models/
 results/test_predictions.csv
 results/predicted_boost_scores.csv
+results/train_oof_predictions.csv
 results/llm/
 llm/harness/
 __pycache__/
