@@ -1,10 +1,10 @@
--- Andrew's confirmed paid posts (gold positives), for checking labels, links and the model.
+-- Posts in the paid team's post-ID tag (gold positives), for checking labels, links and the model.
 -- PAID_MEDIA_UNIFIED."ext_p3_organic_post_id" holds the organic post id the ad runs (IG shortcode or TikTok video id).
--- Andrew fills it from Sep 2026, so the set is small and grows each week.
+-- The paid team fills it from Sep 2026, so the set is small and grows each week.
 -- Per post: is it a tracked campaign post (BIRA), and do our own link rules also find it?
 --   Meta   : 11-character token in an EDW ad name = shortcode (the rule in sql/02 and sql/05)
 --   TikTok : DIM_TIKTOK_ADS__AD.TIKTOK_ITEM_ID = video id (Spark Ad link)
--- Export to data/andrew_gold.csv (header row, comma-separated).
+-- Export to data/tagged_paid_posts.csv (header row, comma-separated).
 WITH u AS (
   SELECT "platform" pf, "ext_p3_organic_post_id" pid, MIN("date") first_spend, ROUND(SUM("spend")) spend
   FROM DM_PAID_MEDIA.PUBLIC.PAID_MEDIA_UNIFIED

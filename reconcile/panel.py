@@ -5,8 +5,8 @@ import pandas as pd
 COLS = ["psrk", "tier", "spend_total", "od", "dsf", "dsl", "vp", "vr", "api_total", "api_ig", "api_fb",
         "impr_ig", "impr_fb", "reach_ig", "reach_fb", "starts_ig", "starts_fb", "starts_ot", "starts_ig_p", "starts_fb_p",
         "v2s_ig", "v2s_fb", "v3s_ig", "v3s_fb", "thru_ig", "thru_fb", "p25_ig", "p25_fb", "p100_ig", "p100_fb"]
-TIERS = {"a": "andrew_confirmed", "u": "unified_name", "e": "edw_taxonomy"}
-# Paid metrics in the Meta ad tables / Andrew's unified table, with the names Paid uses
+TIERS = {"a": "post_id_tag", "u": "unified_name", "e": "edw_taxonomy"}
+# Paid metrics in the Meta ad tables / the unified paid table, with the names Paid uses
 METRICS = {"impr": "Impressions", "reach": "Reach", "starts": "Video plays (starts)", "v2s": "2-second plays",
            "v3s": "3-second video views", "thru": "ThruPlays", "p25": "25% watched", "p100": "100% watched"}
 

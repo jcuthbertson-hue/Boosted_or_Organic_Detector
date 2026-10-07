@@ -79,10 +79,10 @@ schema we may write to.
 ```bash
 pip install -r requirements.txt
 # exports (Snowflake -> data/, git-ignored): sql/02 -> data/detector_dataset_v2.psv, sql/06 -> data/recon_panel_ig_full.psv,
-# sql/08 -> data/andrew_gold.csv
+# sql/08 -> data/tagged_paid_posts.csv
 python3 -m detector.train_eval        # train, select, test once; models/ + results/detector_report.json
 python3 -m detector.evaluate          # every classification output -> results/classification_metrics.json
-python3 -m reconcile.analyze          # Tom's math on Instagram -> results/reconciliation.json
+python3 -m reconcile.analyze          # subtraction test on Instagram -> results/reconciliation.json
 python3 -m reconcile.analyze_tiktok   # TikTok + curve back-test -> results/reconciliation_tiktok.json
 python3 -m reports.build_report       # reports/boost_report.html
 python3 -m tests.test_pipeline        # offline checks of the daily pipeline logic
@@ -96,11 +96,11 @@ python3 -m pipeline.run_daily --flags data/flags.csv   # offline daily run (flag
 | `sql/03_view_reconciliation.sql` | Phase 1: public vs opt-in vs SocAPI vs paid plays |
 | `sql/04_llm_cortex_eval.sql` | LLM baseline in Snowflake Cortex |
 | `sql/05_boost_flags.sql` | Daily input: evidence tier (post-ID tag first) + organic-estimate inputs |
-| `sql/06_reconciliation_panel.sql` | Post x day panel for Tom's math (public, opt-in, SocAPI, paid by placement and metric) |
+| `sql/06_reconciliation_panel.sql` | Post x day panel for the subtraction test (public, opt-in, SocAPI, paid by placement and metric) |
 | `sql/07_organic_curve.sql` | Organic growth curve from unboosted posts |
-| `sql/08_andrew_gold_posts.sql` | The paid team's tagged posts and whether our link rules find them |
+| `sql/08_tagged_paid_posts.sql` | The paid team's tagged posts and whether our link rules find them |
 | `sql/09_paid_classification_table.sql` | Table DDL + MERGE for the daily table (not executed) |
-| `reconcile/` | Tom's math, TikTok check, organic curve, production organic estimate |
+| `reconcile/` | Subtraction test, TikTok check, organic curve, production organic estimate |
 | `detector/` | Features, train / test protocol, full evaluation, scoring |
 | `pipeline/`, `tests/` | Daily run scaffold and its offline tests |
 | `reports/` | HTML report builder and output |

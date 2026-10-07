@@ -3,8 +3,8 @@
     "rows": 13859,
     "posts": 159,
     "posts_by_tier": {
-      "andrew_confirmed": 10,
       "edw_taxonomy": 143,
+      "post_id_tag": 10,
       "unified_name": 6
     },
     "obs_from": "2025-09-18",
@@ -321,7 +321,7 @@
       "within_25pct": 0.9515
     }
   },
-  "andrew_confirmed": {
+  "post_id_tag": {
     "posts": 10,
     "post_days": 100,
     "public - paid IG impressions": {

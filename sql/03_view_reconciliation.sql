@@ -1,4 +1,4 @@
--- View reconciliation for boosted posts (Tom's question: "if Instagram shows 5M views for a boosted post,
+-- View reconciliation for boosted posts (question: "if Instagram shows 5M views for a boosted post,
 -- what do we see in Nimble public, opt-in private, SocAPI and the paid media tables?").
 -- One row per ad-linked post with spend, where the ads finished before our latest observation,
 -- so all paid delivery is inside the numbers we compare.

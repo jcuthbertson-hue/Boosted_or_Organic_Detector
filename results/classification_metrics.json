@@ -107,10 +107,10 @@
     "pr_auc": 0.9430871671424444,
     "pr_auc_no_skill": 0.17615176151761516,
     "ks": 0.9022267206477732,
-    "brier": 0.02853879386270988,
+    "brier": 0.028538793862709876,
     "brier_skill": 0.8033466239301397,
     "log_loss": 0.12447684656405858,
-    "ece": 0.02417200943904252,
+    "ece": 0.024172009439042512,
     "tp": 119,
     "fp": 8,
     "fn": 11,
@@ -139,7 +139,7 @@
      0.9721792131477145
     ],
     "brier": [
-     0.019150615112550545,
+     0.019150615112550548,
      0.04005074525903706
     ],
     "accuracy": [
@@ -187,10 +187,10 @@
     "pr_auc": 0.98310124592141,
     "pr_auc_no_skill": 0.34194659776055125,
     "ks": 0.928778667229351,
-    "brier": 0.02855545034025571,
+    "brier": 0.028555450340255712,
     "brier_skill": 0.873097672405318,
     "log_loss": 0.12074016633968025,
-    "ece": 0.03320877460389348,
+    "ece": 0.033208774603893425,
     "tp": 375,
     "fp": 13,
     "fn": 22,
@@ -220,7 +220,7 @@
     "brier": 0.016531627048388082,
     "brier_skill": 0.9265323457914387,
     "log_loss": 0.06880590340842858,
-    "ece": 0.029656316370183705,
+    "ece": 0.02965631637018371,
     "tp": 380,
     "fp": 2,
     "fn": 17,
@@ -1806,7 +1806,7 @@
    ],
    "always_organic_baseline_accuracy": 0.8238482384823849,
    "rules_test": {
-    "Tom's rule: views > followers AND engagement < 1%": {
+    "Hand rule: views > followers AND engagement < 1%": {
      "tp": 96,
      "fp": 3,
      "fn": 34,
@@ -4723,7 +4723,7 @@
    ],
    "always_organic_baseline_accuracy": 0.7234957020057307,
    "rules_test": {
-    "Tom's rule: views > followers AND engagement < 1%": {
+    "Hand rule: views > followers AND engagement < 1%": {
      "tp": 82,
      "fp": 29,
      "fn": 111,
@@ -4808,7 +4808,7 @@
    }
   }
  },
- "andrew_gold": {
+ "tag_gold": {
   "source": "DM_PAID_MEDIA.PUBLIC.PAID_MEDIA_UNIFIED.ext_p3_organic_post_id (filled from 2026-09-15)",
   "posts_tagged": 30,
   "Instagram": {

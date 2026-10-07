@@ -34,7 +34,7 @@ separate organic from paid views where evidence exists). The caveats below must 
   + paid FB plays 1.51M (×1.07 in SocAPI). Components add up within 7%.
 - Opt-in same-day ratio: private and public reads come from the same observation day (staleness 0 days for all 1,422 posts checked).
 
-### Phase 2 checks (Tom's subtraction question, 2026-10-07)
+### Phase 2 checks (subtraction question, 2026-10-07)
 - **Re-run reproducibility:** `detector/train_eval.py` was re-run to save train out-of-fold scores. Test scores match the
   first run to 2.2e-16 and the report JSON is identical. No model, feature or threshold changed after the test was seen.
 - **Grain:** reconciliation panel = one row per (post, observation day): 13,859 rows, 0 duplicate post-days, 159 posts.
@@ -45,7 +45,7 @@ separate organic from paid views where evidence exists). The caveats below must 
   (fit on half the creators, test on the other half) gives the same picture (Instagram day-7 read 8.3% vs 10.0% error).
 - **Production function check:** `reconcile/estimate.py` on the 117 boosted posts reproduces the analysis
   (11.5% typical error, 77% within 25%). Confidence tiers: high 8.6% (65 posts), medium 12.5% (20), low 30.5% (32).
-- **Gold check (Andrew's tag, `sql/08`):** the Meta ad-name rule finds 21 of 21 tagged posts; the TikTok Spark link
+- **Gold check (post-ID tag, `sql/08`):** the Meta ad-name rule finds 21 of 21 tagged posts; the TikTok Spark link
   finds 0 of 3 tagged campaign posts. One TikTok test "false positive" is a tagged paid post (label error, model right).
 - **Cluster bootstrap:** classification intervals resample whole creators (1,000 draws), so they are wider than row bootstrap.
 - **SQL logic check:** `sql/05` was run read-only in Snowflake on 2026-10-07; tier counts and pre-boost coverage are in

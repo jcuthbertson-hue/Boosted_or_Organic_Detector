@@ -8,7 +8,7 @@ Protocol (one model per platform):
   3. Decision threshold chosen on TRAIN out-of-fold scores (max F1). Not tuned on TEST.
   4. Refit the selected model on all TRAIN rows.
   5. Score TEST once. Report ROC-AUC, PR-AUC, precision, recall, F1, Brier score, with bootstrap
-     95% intervals. Also report the fixed rules (Tom's rule, views > followers) on the same TEST rows.
+     95% intervals. Also report the fixed hand rules (views > followers AND ER < 1%; views > followers) on the same TEST rows.
   6. Overfitting check: TRAIN in-sample AUC vs TRAIN cross-validated AUC vs TEST AUC.
   7. Robustness: client-holdout (GroupKFold by organization) on TRAIN, and TEST slices
      (creators not seen in TRAIN; Instagram ad-link positives only).
@@ -61,7 +61,7 @@ def candidates():
 
 def rules(d):
     return {
-        "rule: views>followers AND ER<1% (Tom)": ((d.vtf30 > 1) & (d.er30 < 0.01)).astype(int).values,
+        "rule: views>followers AND ER<1%": ((d.vtf30 > 1) & (d.er30 < 0.01)).astype(int).values,
         "rule: views>followers": (d.vtf30 > 1).astype(int).values,
     }
 

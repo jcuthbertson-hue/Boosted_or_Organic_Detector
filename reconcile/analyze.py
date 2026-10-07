@@ -1,4 +1,4 @@
-"""Tom's question: can we take the platform total, subtract a paid metric from Andrew's paid table,
+"""The subtraction question: can we take the platform total, subtract a paid metric from the unified paid table,
 and get organic views? Checked against opt-in (private) Instagram views, which are organic only.
 
 Inputs (exported by sql/06_reconciliation_panel.sql and companions):
@@ -127,9 +127,9 @@ def main():
         "pre-boost read x organic curve": group_errors(j.est_curve, j.vr),
     }
 
-    # 4) Andrew-confirmed posts (Sep 2026+, mostly still running): in-flight days, paid through that day
-    a = d[(d.tier == "andrew_confirmed") & (d.dsf >= 0)]
-    out["andrew_confirmed"] = {
+    # 4) post-ID-tagged posts (Sep 2026+, mostly still running): in-flight days, paid through that day
+    a = d[(d.tier == "post_id_tag") & (d.dsf >= 0)]
+    out["post_id_tag"] = {
         "posts": int(a.psrk.nunique()), "post_days": int(len(a)),
         "public - paid IG impressions": err_summary(a.vp - a.impr_ig, a.vr),
         "paid_share_of_public": ratio_summary(1 - a.vr / a.vp),
@@ -157,7 +157,7 @@ def main():
     print(json.dumps({k: out[k] for k in ["panel", "postflight_posts", "paid_share_of_public", "preboost_posts"]}, indent=1, default=float))
     print(pd.DataFrame(out["recipes"]).T.round(3).to_string())
     print(json.dumps(out["campaign_level"], indent=1, default=float))
-    print(json.dumps(out["andrew_confirmed"], indent=1, default=float))
+    print(json.dumps(out["post_id_tag"], indent=1, default=float))
     print(json.dumps(out["timing_in_flight"], indent=1, default=float))
     print(out["error_by_paid_share"])
 

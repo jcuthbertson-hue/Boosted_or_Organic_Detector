@@ -119,7 +119,7 @@
       "precision": 0.937007874015748,
       "recall": 0.9153846153846154,
       "f1": 0.9260700389105059,
-      "brier": 0.028538793862697684,
+      "brier": 0.02853879386269768,
       "ci95": {
         "roc_auc": [
           0.9403818724800111,
@@ -144,7 +144,7 @@
       }
     },
     "test_rules": {
-      "rule: views>followers AND ER<1% (Tom)": {
+      "rule: views>followers AND ER<1%": {
         "n": 738,
         "n_pos": 130,
         "roc_auc": 0.8667636639676114,
@@ -408,7 +408,7 @@
       }
     },
     "test_rules": {
-      "rule: views>followers AND ER<1% (Tom)": {
+      "rule: views>followers AND ER<1%": {
         "n": 698,
         "n_pos": 193,
         "roc_auc": 0.683722361873493,

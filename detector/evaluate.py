@@ -8,10 +8,10 @@ Outputs per platform (TEST unless marked):
   F1, F2, MCC, Cohen's kappa; ROC curve + AUC; PR curve + average precision; KS; calibration curve, Brier,
   Brier skill, log loss, ECE; score histograms; cumulative gains; threshold sweep; operating points chosen on TRAIN;
   train in-sample vs train CV vs test; 95% intervals from a creator-cluster bootstrap; the two hand rules;
-  slices; Andrew's confirmed paid posts (gold check); LLM comparison.
+  slices; posts in the paid team's post-ID tag (gold check); LLM comparison.
 
 Inputs : results/test_predictions.csv, results/train_oof_predictions.csv, results/detector_report.json,
-         data/detector_dataset_v2.psv (creator handle + rule inputs), data/andrew_gold.csv (sql/08),
+         data/detector_dataset_v2.psv (creator handle + rule inputs), data/tagged_paid_posts.csv (sql/08),
          results/llm_vs_ml.csv, results/llm_vs_ml_paired_auc.csv
 Output : results/classification_metrics.json  (aggregates only: no post ids, creators or client names)
 
@@ -127,8 +127,8 @@ def operating_points(y_tr, p_tr, y_te, p_te, thr_f1):
     return out
 
 
-def andrew_gold(gold, te, tr):
-    """Andrew's confirmed paid posts (PAID_MEDIA_UNIFIED.ext_p3_organic_post_id). Counts and scores, no ids."""
+def tag_gold(gold, te, tr):
+    """Posts in the post-ID tag (PAID_MEDIA_UNIFIED.ext_p3_organic_post_id). Counts and scores, no ids."""
     out = {"source": "DM_PAID_MEDIA.PUBLIC.PAID_MEDIA_UNIFIED.ext_p3_organic_post_id (filled from 2026-09-15)",
            "posts_tagged": int(len(gold))}
     for pf, name, rule in [("meta", "Instagram", "11-character ad-name token = shortcode"),
@@ -190,7 +190,7 @@ def main():
         m["threshold_sweep_train_cv"] = sweep(a.y, a.p_boost_oof)
         m["operating_points"] = operating_points(a.y, a.p_boost_oof, b.y, b.p_boost, thr)
         m["always_organic_baseline_accuracy"] = float(1 - b.y.mean())
-        rules = {"Tom's rule: views > followers AND engagement < 1%": ((b.vtf30 > 1) & (b.er30 < 0.01)).astype(int),
+        rules = {"Hand rule: views > followers AND engagement < 1%": ((b.vtf30 > 1) & (b.er30 < 0.01)).astype(int),
                  "views > followers": (b.vtf30 > 1).astype(int)}
         m["rules_test"] = {k: {**threshold_metrics(b.y, f, 0.5), "roc_auc": float(roc_auc_score(b.y, f))}
                            for k, f in rules.items()}
@@ -204,11 +204,11 @@ def main():
                             for k, s in sl.items() if s.y.nunique() == 2}
         out["platforms"][pf] = m
 
-    if os.path.exists("data/andrew_gold.csv"):
-        gold = pd.read_csv("data/andrew_gold.csv", dtype={"psrk": str, "pid": str})
+    if os.path.exists("data/tagged_paid_posts.csv"):
+        gold = pd.read_csv("data/tagged_paid_posts.csv", dtype={"psrk": str, "pid": str})
         gold["in_bira"] = gold.in_bira.astype(str).str.lower() == "true"
         gold["found_by_our_link"] = gold.found_by_our_link.astype(str).str.lower() == "true"
-        out["andrew_gold"] = andrew_gold(gold, te, tr)
+        out["tag_gold"] = tag_gold(gold, te, tr)
 
     llm = pd.read_csv("results/llm_vs_ml.csv")
     out["llm_comparison"] = {"rows": llm.round(4).to_dict("records"),
@@ -224,10 +224,10 @@ def main():
             print(f"  {k:18s} {t[k]:.3f}" + (f"  [{c[0]:.3f}, {c[1]:.3f}]" if c else ""))
         print("  operating points:", [(o["rule"], o["threshold"], round(o["test"]["precision"], 3), round(o["test"]["recall"], 3)) for o in m["operating_points"]])
         print("  slices:", {k: (v["n_pos"], round(v["roc_auc"], 3)) for k, v in m["slices_test"].items()})
-    if "andrew_gold" in out:
+    if "tag_gold" in out:
         for pf in PLATFORMS:
-            g = out["andrew_gold"][pf]
-            print(f"\nAndrew gold {pf}: tagged {g['tagged']}, tracked {g['tracked_in_bira']}, "
+            g = out["tag_gold"][pf]
+            print(f"\nPost-ID tag gold {pf}: tagged {g['tagged']}, tracked {g['tracked_in_bira']}, "
                   f"found by our link {g['found_by_link_rule_all']} (tracked {g['found_by_link_rule_tracked']})")
             for p in g["posts"]:
                 if p["in_detector_data"]:

@@ -1,9 +1,9 @@
--- Tom's math, post x observation day:  platform total - paid metric = organic ?
+-- Subtraction test, post x observation day:  platform total - paid metric = organic ?
 -- Ground truth for organic = opt-in (private) Instagram views on the same day (organic only, Instagram only).
 --
--- Sample tiers (Tom: start with Andrew's confirmed posts, go back in time only if the sample is too small):
---   andrew_confirmed : post id in Andrew's taxonomy field PAID_MEDIA_UNIFIED."ext_p3_organic_post_id" (from Sep 2026)
---   unified_name     : post id in an ad name inside Andrew's unified table
+-- Sample tiers (start with posts in the paid team's post-ID tag; go back in time only if the sample is too small):
+--   post_id_tag      : post id in the paid team's post-ID field PAID_MEDIA_UNIFIED."ext_p3_organic_post_id" (from Sep 2026)
+--   unified_name     : post id in an ad name inside the unified paid table
 --   edw_taxonomy     : post id in the ad-name taxonomy of the full Meta ad tables (older ads, same slot)
 -- Paid metrics come from SNOWFLAKE_EDW.EDW.FACT_FACEBOOK_ADS__AD_PERFORMANCE, the table the unified table is built
 -- from (its sums match the unified table), so every tier uses identical metric definitions.
@@ -16,7 +16,7 @@ WITH bira AS (
   FROM DM_BUSINESS_INTELLIGENCE.BI_REPORTING_APP.BIRA_MART_ORGANIC__CAMPAIGN_POST_PERFORMANCE
   WHERE POST_PLATFORM = 'Instagram' AND POST_TYPE <> 'STORY'
   GROUP BY 1),
-andrew AS (SELECT DISTINCT b.psrk FROM DM_PAID_MEDIA.PUBLIC.PAID_MEDIA_UNIFIED pm JOIN bira b ON b.sc = pm."ext_p3_organic_post_id"),
+tagged AS (SELECT DISTINCT b.psrk FROM DM_PAID_MEDIA.PUBLIC.PAID_MEDIA_UNIFIED pm JOIN bira b ON b.sc = pm."ext_p3_organic_post_id"),
 unified_name AS (
   SELECT DISTINCT b.psrk FROM (SELECT DISTINCT "ad_name" FROM DM_PAID_MEDIA.PUBLIC.PAID_MEDIA_UNIFIED WHERE "platform" = 'meta') pm,
          LATERAL FLATTEN(input => REGEXP_SUBSTR_ALL(pm."ad_name", '[A-Za-z0-9_-]{11}')) t JOIN bira b ON b.sc = t.value::STRING),
@@ -49,7 +49,7 @@ soc AS (
   WHERE MEDIA_INFO_STATUS = 'SUCCESS' AND API_PLAY_COUNT IS NOT NULL
   QUALIFY ROW_NUMBER() OVER (PARTITION BY POST_SCRAPER_REFERENCE_KEY, OBSERVATION_DATE ORDER BY MEDIA_INFO_FETCHED_AT DESC) = 1)
 SELECT ts.psrk,
-       CASE WHEN ts.psrk IN (SELECT psrk FROM andrew) THEN 'andrew_confirmed'
+       CASE WHEN ts.psrk IN (SELECT psrk FROM tagged) THEN 'post_id_tag'
             WHEN ts.psrk IN (SELECT psrk FROM unified_name) THEN 'unified_name' ELSE 'edw_taxonomy' END tier,
        p.first_spend, p.last_spend, ROUND(p.spend_total) spend_total,
        ts.od, DATEDIFF('day', p.first_spend, ts.od) dsf, DATEDIFF('day', p.last_spend, ts.od) dsl,

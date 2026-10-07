@@ -3,10 +3,10 @@
 -- (reconcile/estimate.py), then MERGEs the result into the paid classification table (sql/09).
 --
 -- Evidence tiers (strongest first):
---   CONFIRMED_PAID_TAG     Andrew's paid table names this post: PAID_MEDIA_UNIFIED."ext_p3_organic_post_id" (from Sep 2026).
+--   CONFIRMED_PAID_TAG     the paid team's post-ID tag names this post: PAID_MEDIA_UNIFIED."ext_p3_organic_post_id" (from Sep 2026).
 --                          The paid team enters it per ad, so it is the most direct proof that a post is paid.
 --   CONFIRMED_AD_LINK      an ad with spend > 0 runs this post (TikTok: TIKTOK_ITEM_ID = video id;
---                          Meta: taxonomy key or 11-character shortcode in the ad name). Check vs Andrew's tag:
+--                          Meta: taxonomy key or 11-character shortcode in the ad name). Check vs the post-ID tag:
 --                          Meta 21 of 21 tagged posts found; TikTok 6 of 9 (0 of the 3 tracked campaign posts).
 --   MEASURED_OPTIN_GAP     Instagram: opt-in organic views < 80% of public views on the same day
 --   MEASURED_SOCAPI_GAP    Instagram: SocAPI total - IG plays - FB cross-post plays > 25% of IG plays
@@ -14,7 +14,7 @@
 --   NO_PAID_EVIDENCE       none of the above (the model scores it)
 --
 -- Organic-estimate inputs: latest public and opt-in views, and the last public read before the boost start
--- (first spend day from Andrew's tag or an ad link, or the manual paid date, whichever is first) with its age. The estimate itself needs the organic curve, so it is computed in Python.
+-- (first spend day from the post-ID tag or an ad link, or the manual paid date, whichever is first) with its age. The estimate itself needs the organic curve, so it is computed in Python.
 WITH mart AS (
   SELECT POST_SCRAPER_REFERENCE_KEY psrk, POST_PLATFORM platform,
          ANY_VALUE(REGEXP_SUBSTR(POST_URL, 'instagram\\.com/(p|reel|reels|tv)/([A-Za-z0-9_-]+)', 1, 1, 'e', 2)) sc,
@@ -25,7 +25,7 @@ WITH mart AS (
   FROM DM_BUSINESS_INTELLIGENCE.BI_REPORTING_APP.BIRA_MART_ORGANIC__CAMPAIGN_POST_PERFORMANCE
   WHERE POST_PLATFORM IN ('Instagram', 'Tiktok') AND POST_TYPE <> 'STORY'
   GROUP BY 1, 2),
-tag AS (     -- Andrew's tag (unified paid table; metrics are all placements together)
+tag AS (     -- post-ID tag (unified paid table; metrics are all placements together)
   SELECT platform, psrk, MIN(d) first_spend, SUM(spend) spend, SUM(impr) impr, SUM(starts) starts FROM (
     SELECT m.platform, m.psrk, u."date" d, u."spend" spend, u."impressions" impr, u."video_starts" starts
     FROM DM_PAID_MEDIA.PUBLIC.PAID_MEDIA_UNIFIED u JOIN mart m ON m.platform = 'Instagram' AND m.sc = u."ext_p3_organic_post_id"
@@ -55,7 +55,7 @@ paid AS (    -- EDW ad tables (placement split on Meta)
   JOIN mart m ON m.psrk = a.TIKTOK_ITEM_ID AND m.platform = 'Tiktok'
   WHERE f.DATE <= COALESCE(m.obs_latest, CURRENT_DATE)
   GROUP BY 1, 2),
-first_spend AS (   -- first ad spend day (Andrew's tag or ad link)
+first_spend AS (   -- first ad spend day (post-ID tag or ad link)
   SELECT platform, psrk, MIN(first_spend) first_spend FROM (
     SELECT platform, psrk, first_spend FROM tag UNION ALL SELECT platform, psrk, first_spend FROM paid WHERE spend > 0)
   GROUP BY 1, 2),
