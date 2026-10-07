@@ -91,10 +91,10 @@ def lin(d0, d1, r0, r1):
 
 
 DEFS = """<svg class="defs" width="0" height="0" aria-hidden="true" focusable="false"><defs>
-<linearGradient id="wash-blue" x1="0" y1="0" x2="0" y2="1"><stop offset="0" class="st-blue" stop-opacity=".22"/><stop offset="1" class="st-blue" stop-opacity="0"/></linearGradient>
-<pattern id="hatch-blue" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" class="hb-bg-blue"/><rect width="2" height="6" class="hb-blue"/></pattern>
-<pattern id="hatch-green" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" class="hb-bg-green"/><rect width="2" height="6" class="hb-green"/></pattern>
-<pattern id="vhatch-pink" width="5" height="5" patternUnits="userSpaceOnUse"><rect width="5" height="5" class="hb-bg-pink"/><rect width="1.2" height="5" class="hb-pink"/></pattern>
+<linearGradient id="wash-a" x1="0" y1="0" x2="0" y2="1"><stop offset="0" class="st-a" stop-opacity=".2"/><stop offset="1" class="st-a" stop-opacity="0"/></linearGradient>
+<pattern id="hatch-a" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" class="hb-bg-a"/><rect width="2" height="6" class="hb-a"/></pattern>
+<pattern id="hatch-n" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" class="hb-bg-n"/><rect width="1.6" height="6" class="hb-n"/></pattern>
+<pattern id="vhatch-n" width="5" height="5" patternUnits="userSpaceOnUse"><rect width="1" height="5" class="hb-vn"/></pattern>
 </defs></svg>"""
 
 
@@ -115,7 +115,7 @@ def xy_chart(series, *, label, xdom=(0, 1), ydom=(0, 1), ticks=(0, .5, 1), xlabe
     if vline is not None:
         v, txt = vline
         s.append(f'<line class="ref" x1="{X(v):.1f}" x2="{X(v):.1f}" y1="{m["t"]}" y2="{h - m["b"]}"/>'
-                 f'<text class="tick" x="{X(v) + 5:.1f}" y="{m["t"] + 10}">{esc(txt)}</text>')
+                 f'<text class="tick" x="{X(v) + 5:.1f}" y="{h - m["b"] - 6}">{esc(txt)}</text>')
     for se in series:
         pts = se["pts"]
         d = "M" + " L".join(f"{X(x):.1f},{Y(y):.1f}" for x, y in pts)
@@ -163,8 +163,8 @@ def mirror_hist(hist, thr, lab, w=360, h=250):
     bw = X(e[1]) - X(e[0]) - 2
     for i in range(len(pos)):
         rng = f"score {e[i]:.2f}–{e[i + 1]:.2f}"
-        for d, cls, txt in [(round_bar(X(e[i]) + 1, mid, Yu(fp[i]), bw), "bar-blue", f"Paid posts, {rng}: {pos[i]} ({pct(fp[i])} of paid)"),
-                            (round_bar(X(e[i]) + 1, mid, Yd(fn[i]), bw), "bar-green", f"Organic posts, {rng}: {neg[i]} ({pct(fn[i])} of organic)")]:
+        for d, cls, txt in [(round_bar(X(e[i]) + 1, mid, Yu(fp[i]), bw), "bar-a", f"Paid posts, {rng}: {pos[i]} ({pct(fp[i])} of paid)"),
+                            (round_bar(X(e[i]) + 1, mid, Yd(fn[i]), bw), "bar-n", f"Organic posts, {rng}: {neg[i]} ({pct(fn[i])} of organic)")]:
             if d:
                 s.append(f'<path class="{cls}" d="{d}" data-tip="{esc(txt)}"/>')
     s.append(f'<line class="axis" x1="{m["l"]}" x2="{w - m["r"]}" y1="{mid}" y2="{mid}"/>'
@@ -197,8 +197,8 @@ def curve_chart(curves, w=360, h=230):
     ig = [(a, v) for a, v, _ in curves["Instagram"] if a <= 120]
     tt = [(a, v) for a, v, _ in curves["Tiktok"] if a <= 120]
     s.append(f'<path class="vfill" d="{step(ig)} H{X(120):.1f} V{Y(0):.1f} H{X(0):.1f} Z"/>')
-    s.append(f'<path class="ln ln-blue" d="{step(tt)}"/><path class="ln ln-pink" d="{step(ig)}"/>')
-    for lab, pts, cls in [("Instagram", ig, "ln-pink"), ("TikTok", tt, "ln-blue")]:
+    s.append(f'<path class="ln ln-n4" d="{step(tt)}"/><path class="ln ln-acc" d="{step(ig)}"/>')
+    for lab, pts, cls in [("Instagram", ig, "ln-acc"), ("TikTok", tt, "ln-n4")]:
         for a, v in pts[::3]:
             s.append(f'<circle class="hit" cx="{X(a):.1f}" cy="{Y(v):.1f}" r="8" data-tip="{esc(f"{lab}, day {a}: {pct(v)} of day-120 views")}"/>')
     s.append("</svg>")
@@ -240,8 +240,8 @@ def progress(rows, fmt=pct):
 
 
 def dots(V):
-    seg = [("measured_optin", "Measured (opt-in)", "d4"), ("est_high", "Estimate, high", "d3"), ("est_medium", "Estimate, medium", "d2"),
-           ("est_low", "Estimate, low", "d1"), ("not_separable", "Not separable", "d0")]
+    seg = [("measured_optin", "Measured (opt-in)", "m"), ("est_high", "Estimate, high", "h"), ("est_medium", "Estimate, medium", "md"),
+           ("est_low", "Estimate, low", "l"), ("not_separable", "Not separable", "x")]
     out = []
     for p, lab in PLATFORMS:
         t = V["totals"][p]
@@ -260,21 +260,25 @@ def dot_range(R):
     lo, hi = .5, 1000
     pos = lambda v: 100 * (math.log10(min(max(v, lo), hi)) - math.log10(lo)) / (math.log10(hi) - math.log10(lo))
     ticks = [.5, 1, 2, 5, 10, 100, 1000]
+    closest = lambda side: min((k for k, r in side.items() if r.get("n")), key=lambda k: abs(math.log10(side[k]["median"])))
+    best = {"t": closest(ig), "b": closest(fb)}
     rows = []
     for name in ig:
         marks = ""
-        for r, cls, side, where in [(ig[name], "c-blue", "Instagram placement", "t"), (fb.get(name, {}), "c-orange", "Facebook placement", "b")]:
+        for r, cls, side, where in [(ig[name], "k-ig", "Instagram placement", "t"), (fb.get(name, {}), "k-fb", "Facebook placement", "b")]:
             if not r.get("n"):
                 continue
+            cls += " best" if best[where] == name else ""
             tip = f"{name}, {side}: {times(r['median'])} (middle half {times(r['q25'])}–{times(r['q75'])}), {r['n']} reads"
             marks += (f'<span class="dr-w {cls} {where}" style="left:{pos(r["q25"]):.2f}%;width:{max(pos(r["q75"]) - pos(r["q25"]), .4):.2f}%"></span>'
                       f'<span class="dr-d {cls} {where}" style="left:{pos(r["median"]):.2f}%" tabindex="0" data-tip="{esc(tip)}"></span>')
-        rows.append(f'<div class="dr-row"><span class="dr-l">{esc(name)}</span><div class="dr-t">'
+        lcls = " best" if name in best.values() else ""
+        rows.append(f'<div class="dr-row"><span class="dr-l{lcls}">{esc(name)}</span><div class="dr-t">'
                     + "".join(f'<span class="dr-g" style="left:{pos(t):.2f}%"></span>' for t in ticks)
                     + f'<span class="dr-one" style="left:{pos(1):.2f}%"></span>{marks}</div></div>')
     axis = '<div class="dr-row ax"><span class="dr-l"></span><div class="dr-t">' + "".join(
         f'<span class="dr-x" style="left:{pos(t):.2f}%">{t:g}×</span>' for t in ticks) + "</div></div>"
-    return legend([("c-blue", "Instagram side"), ("c-orange", "Facebook side")]) + f'<div class="dr">{"".join(rows)}{axis}</div>'
+    return legend([("c-n5", "Instagram side"), ("c-n3", "Facebook side"), ("c-acc", "Closest to 1×")]) + f'<div class="dr">{"".join(rows)}{axis}</div>'
 
 
 # ---------------------------------------------------------------- page sections
@@ -298,11 +302,11 @@ def overview(D):
     b = card("Use the views before the boost",
              f'<div class="big">{pct(curve["median_abs_error"], 1)}</div><p class="big-sub">typical organic error, never negative</p>'
              + '<p class="mini">Posts within ±25% of true organic</p>'
-             + progress([("Pre-boost views × organic growth", curve["within_25pct"], "hatch-green",
+             + progress([("Pre-boost views × organic growth", curve["within_25pct"], "solid",
                           f"{pct(curve['within_25pct'])} of {curve['posts']} posts within ±25%; typical error {pct(curve['median_abs_error'], 1)}"),
-                         ("Public − paid impressions", best["within_25pct"], "hatch-blue",
+                         ("Public − paid impressions", best["within_25pct"], "hatch-n",
                           f"{pct(best['within_25pct'])} of {best['posts']} posts within ±25%; typical error {pct(best['median_abs_error'])}; {pct(best['negative_organic'])} negative"),
-                         ("SocAPI total − paid", soc["within_25pct"], "hatch-pink",
+                         ("SocAPI total − paid", soc["within_25pct"], "hatch-n",
                           f"{pct(soc['within_25pct'])} of {soc['posts']} posts within ±25%; typical error {pct(soc['median_abs_error'])}")]),
              tip="Take the last public read before the first ad day, then grow it by the median curve of unpaid posts. Checked against opt-in views on 117 paid Instagram posts.",
              data=table(["Method", "Posts", "Typical error", "Within ±25%", "Negative"],
@@ -310,7 +314,7 @@ def overview(D):
                          for k, n in [("pre-boost read x organic curve (no fitting on these posts)", "Pre-boost × curve"),
                                       ("public - paid IG Impressions", "Public − paid impressions"),
                                       ("SocAPI total - FB cross-post - IG impressions - FB video plays (best mix)", "SocAPI total − paid")]]))
-    c = card("Normal organic growth", curve_chart(D["curves"]) + legend([("c-pink", "Instagram"), ("c-blue", "TikTok")]),
+    c = card("Normal organic growth", curve_chart(D["curves"]) + legend([("c-acc", "Instagram"), ("c-n4", "TikTok")]),
              sub="Share of day-120 views by post age, unpaid posts",
              tip="The method grows the pre-boost views along this curve. Built from unpaid posts only (Instagram 1,505, TikTok 608).",
              data=table(["Day", "Instagram", "TikTok"],
@@ -320,9 +324,9 @@ def overview(D):
              tip="Each dot is 1% of paid posts in BIRA (all dates). Confidence of the estimate depends on how late the pre-boost read is: day 14+ high, day 7–13 medium, before day 7 low.",
              data=table(["Platform", "Measured", "High", "Medium", "Low", "Not separable"],
                         [[lab] + [f'{V["totals"][p][k]:,}' for k in ("measured_optin", "est_high", "est_medium", "est_low", "not_separable")] for p, lab in PLATFORMS]))
-    e = (f'<article class="card glow"><span class="pill glass">Paid-post model</span>'
-         f'<div class="glow-num">{pct(P["Tiktok"]["test_metrics"]["precision"])}</div>'
-         f'<p class="glow-sub">of TikTok flags are real paid posts. Instagram: {pct(P["Instagram"]["test_metrics"]["precision"])}.</p></article>')
+    e = (f'<article class="card inv"><span class="pill glass">Paid-post model</span>'
+         f'<div class="inv-num">{pct(P["Tiktok"]["test_metrics"]["precision"])}</div>'
+         f'<p class="inv-sub">of TikTok flags are real paid posts. Instagram: {pct(P["Instagram"]["test_metrics"]["precision"])}.</p></article>')
     f = card("Which paid metric matches the platform count", dot_range(R), cls="span3",
              sub="Extra views on the platform ÷ paid metric. 1× is a perfect match.",
              tip="Instagram side: (public − opt-in) ÷ paid Instagram-placement metric, 146 posts. Facebook side: SocAPI Facebook-paid plays ÷ paid Facebook-placement metric, 20 posts. Dot = median, bar = middle half. Log scale.",
@@ -391,32 +395,31 @@ def model(D):
         pos, neg = m["tp"] + m["fn"], m["fp"] + m["tn"]
 
         def cell(v, tot, kind, of):
-            sh = v / tot
-            q = "q4" if sh >= .75 else "q3" if sh >= .4 else "q2" if sh >= .1 else "q1"
-            return f'<div class="cm {q}" tabindex="0" data-tip="{esc(f"{lab}: {kind} {v} = {pct(sh, 1)} of {of}")}"><b>{v:,}</b><span>{kind}</span></div>'
+            q = {"true positive": "cm-a", "true negative": "cm-k"}.get(kind, "cm-l")
+            return f'<div class="cm {q}" tabindex="0" data-tip="{esc(f"{lab}: {kind} {v} = {pct(v / tot, 1)} of {of}")}"><b>{v:,}</b><span>{kind}</span></div>'
         return (f'<div class="cmx"><span></span><span class="cmh">Model: paid</span><span class="cmh">Model: organic</span>'
                 f'<span class="cmr">Label: paid ({pos})</span>{cell(m["tp"], pos, "true positive", "paid posts")}{cell(m["fn"], pos, "false negative", "paid posts")}'
                 f'<span class="cmr">Label: organic ({neg})</span>{cell(m["fp"], neg, "false positive", "organic posts")}{cell(m["tn"], neg, "true negative", "organic posts")}</div>')
 
     def roc(p, lab):
         c, ct = P[p]["curves_test"]["roc"], P[p]["curves_train_cv"]["roc"]
-        return xy_chart([{"cls": "ln-mute", "pts": list(zip(ct["fpr"], ct["tpr"]))},
-                         {"cls": "ln-blue", "area": True, "pts": list(zip(c["fpr"], c["tpr"])),
+        return xy_chart([{"cls": "ln-n3", "pts": list(zip(ct["fpr"], ct["tpr"]))},
+                         {"cls": "ln-acc", "area": True, "pts": list(zip(c["fpr"], c["tpr"])),
                           "tip": lambda x, y, i: f"{lab} test: false positive rate {pct(x, 1)}, true positive rate {pct(y, 1)}"}],
                         label=f"{lab} ROC curve", diag=True, xlabel="False positive rate", ylabel="True positive rate")
 
     def pr(p, lab):
         c, ct = P[p]["curves_test"]["pr"], P[p]["curves_train_cv"]["pr"]
         base = P[p]["test_metrics"]["prevalence"]
-        return xy_chart([{"cls": "ln-mute", "pts": list(zip(ct["recall"], ct["precision"]))},
-                         {"cls": "ln-blue", "area": True, "pts": list(zip(c["recall"], c["precision"])),
+        return xy_chart([{"cls": "ln-n3", "pts": list(zip(ct["recall"], ct["precision"]))},
+                         {"cls": "ln-acc", "area": True, "pts": list(zip(c["recall"], c["precision"])),
                           "tip": lambda x, y, i: f"{lab} test: recall {pct(x, 1)}, precision {pct(y, 1)}"},
                          {"cls": "ln-ref", "pts": [(0, base), (1, base)]}],
                         label=f"{lab} precision-recall curve", xlabel="Recall", ylabel="Precision")
 
     def cal(p, lab):
         c = P[p]["curves_test"]["calibration"]
-        return xy_chart([{"cls": "ln-blue", "dots": True, "pts": [(r["mean_pred"], r["share_boosted"]) for r in c],
+        return xy_chart([{"cls": "ln-acc", "dots": True, "pts": [(r["mean_pred"], r["share_boosted"]) for r in c],
                           "tip": lambda x, y, i: f"{lab}: mean score {pct(x, 1)}, actually paid {pct(y, 1)} ({c[i]['n']} posts)"}],
                         label=f"{lab} calibration", diag=True, xlabel="Mean model score", ylabel="Share actually paid")
 
@@ -424,14 +427,14 @@ def model(D):
         s, thr = P[p]["threshold_sweep_test"], P[p]["threshold_from_train"]
         mk = lambda k: [(r["threshold"], r[k]) for r in s]
         tipf = lambda nm: (lambda x, y, i: f"{lab}, threshold {x:.2f}: {nm} {pct(y, 1)}")
-        return xy_chart([{"cls": "ln-blue", "pts": mk("precision"), "tip": tipf("precision")},
-                         {"cls": "ln-pink", "pts": mk("recall"), "tip": tipf("recall")},
-                         {"cls": "ln-ink", "pts": mk("f1"), "tip": tipf("F1")}],
+        return xy_chart([{"cls": "ln-n5", "pts": mk("precision"), "tip": tipf("precision")},
+                         {"cls": "ln-n3", "pts": mk("recall"), "tip": tipf("recall")},
+                         {"cls": "ln-acc", "pts": mk("f1"), "tip": tipf("F1")}],
                         label=f"{lab} threshold sweep", vline=(thr, f"train pick {thr:.2f}"), xlabel="Threshold", ylabel="Test metric")
 
     def gains(p, lab):
         g = P[p]["curves_test"]["gains"]
-        return xy_chart([{"cls": "ln-blue", "area": True, "pts": [(0, 0)] + [(r["top_share"], r["boosted_captured"]) for r in g],
+        return xy_chart([{"cls": "ln-acc", "area": True, "pts": [(0, 0)] + [(r["top_share"], r["boosted_captured"]) for r in g],
                           "tip": lambda x, y, i: f"{lab}: check the top {pct(x)} of scores, find {pct(y, 1)} of paid posts"}],
                         label=f"{lab} cumulative gains", diag=True, xlabel="Share of posts checked, top score first", ylabel="Paid posts found")
 
@@ -439,9 +442,9 @@ def model(D):
         t = P[p]["test_metrics"]
         llm = [r for r in D["llm"] if r["platform"] == p and not r["detector"].startswith("ML")]
         bestllm = max(llm, key=lambda r: float(r["f1"]))
-        rows = [("This model", t["f1"], "solid"), ("Hand rule: views > followers, engagement < 1%", P[p]["rules_test"][HAND_RULE]["f1"], "hatch-blue"),
-                ("Views > followers", P[p]["rules_test"]["views > followers"]["f1"], "hatch-blue"),
-                (f"Best LLM ({bestllm['detector'].replace('LLM ', '')}, 150 posts)", float(bestllm["f1"]), "hatch-blue")]
+        rows = [("This model", t["f1"], "solid"), ("Hand rule: views > followers, engagement < 1%", P[p]["rules_test"][HAND_RULE]["f1"], "hatch-n"),
+                ("Views > followers", P[p]["rules_test"]["views > followers"]["f1"], "hatch-n"),
+                (f"Best LLM ({bestllm['detector'].replace('LLM ', '')}, 150 posts)", float(bestllm["f1"]), "hatch-n")]
         return progress([(n, v, c, f"{lab}: {n}: F1 {v:.2f}") for n, v, c in rows], fmt=f2)
 
     names = {"late_share_d7": "Views gained after day 7", "front_load_d1": "Views already there on day 1", "log_views30": "Views at day 30",
@@ -452,7 +455,8 @@ def model(D):
     def inputs(p, lab):
         top = list(P[p]["permutation_importance_test_pr_auc"].items())[:5]
         mx = max(v for _, v in top)
-        return progress([(names.get(k, k), max(v, 0) / mx, "hatch-blue", f"{lab}: PR AUC drops {v:.3f} when this input is shuffled") for k, v in top])
+        return progress([(names.get(k, k), max(v, 0) / mx, "solid" if i == 0 else "hatch-n", f"{lab}: PR AUC drops {v:.3f} when this input is shuffled")
+                         for i, (k, v) in enumerate(top)])
 
     both = lambda fn: pf_panels(fn)
     sweep_rows = [[lab, f'{r["threshold"]:.2f}', pct(r["precision"], 1), pct(r["recall"], 1), pct(r["f1"], 1)] for p, lab in PLATFORMS for r in P[p]["threshold_sweep_test"]]
@@ -460,11 +464,11 @@ def model(D):
         card("Confusion matrix", both(cmx), sub="Locked test, threshold chosen on train",
              tip="Test posts published 2026-07-01 to 2026-09-09, scored once. Rows = true label, columns = model flag.",
              data=table(["Platform", "TP", "FP", "FN", "TN"], [[lab] + [P[p]["test_metrics"][k] for k in ("tp", "fp", "fn", "tn")] for p, lab in PLATFORMS])),
-        card("ROC curve", both(roc) + legend([("c-blue", "Test"), ("c-mute", "Train, cross-validated")]), sub="Test sits close to train: little overfitting",
+        card("ROC curve", both(roc) + legend([("c-acc", "Test"), ("c-n3", "Train, cross-validated")]), sub="Test sits close to train: little overfitting",
              tip="Dashed line = random guess. Train curve uses 5-fold cross-validation grouped by creator.",
              data=table(["Platform", "Test AUC", "Train CV AUC", "Train in-sample AUC"],
                         [[lab, f3(P[p]["test_metrics"]["roc_auc"]), f3(P[p]["train_cv_metrics"]["roc_auc"]), f3(P[p]["train_in_sample_metrics"]["roc_auc"])] for p, lab in PLATFORMS])),
-        card("Precision-recall", both(pr) + legend([("c-blue", "Test"), ("c-mute", "Train, cross-validated"), ("c-ref", "Random guess")]),
+        card("Precision-recall", both(pr) + legend([("c-acc", "Test"), ("c-n3", "Train, cross-validated"), ("c-ref", "Random guess")]),
              sub="The fair view when most posts are organic", tip="Random guess = share of paid posts in the test set.",
              data=table(["Platform", "Test PR AUC", "Train CV PR AUC", "Share paid (test)"],
                         [[lab, f3(P[p]["test_metrics"]["pr_auc"]), f3(P[p]["train_cv_metrics"]["pr_auc"]), pct(P[p]["test_metrics"]["prevalence"], 1)] for p, lab in PLATFORMS])),
@@ -473,12 +477,12 @@ def model(D):
              data=table(["Platform", "Mean score", "Share paid", "Posts"],
                         [[lab, pct(r["mean_pred"], 1), pct(r["share_boosted"], 1), r["n"]] for p, lab in PLATFORMS for r in P[p]["curves_test"]["calibration"]])),
         card("Score distribution", both(lambda p, lab: mirror_hist(P[p]["curves_test"]["histogram"], P[p]["threshold_from_train"], lab))
-             + legend([("c-blue", "Paid (label)"), ("c-green", "Organic (label)")]), sub="Paid and organic posts pull apart",
+             + legend([("c-acc", "Paid (label)"), ("c-n3", "Organic (label)")]), sub="Paid and organic posts pull apart",
              tip="Each bar is the share of that label group in a score bin, so both groups use the same scale.",
              data=table(["Platform", "Score bin", "Paid", "Organic"],
                         [[lab, f'{h["edges"][i]:.2f}–{h["edges"][i + 1]:.2f}', h["boosted"][i], h["organic"][i]]
                          for p, lab in PLATFORMS for h in [P[p]["curves_test"]["histogram"]] for i in range(len(h["boosted"]))])),
-        card("Threshold choice", both(sweep) + legend([("c-blue", "Precision"), ("c-pink", "Recall"), ("c-ink", "F1")]), sub="How results move with the cut-off",
+        card("Threshold choice", both(sweep) + legend([("c-n5", "Precision"), ("c-n3", "Recall"), ("c-acc", "F1")]), sub="How results move with the cut-off",
              tip="The threshold was chosen on train (max F1). For a “sure” flag on Instagram, a cut-off of 0.78 gives 98% precision at 55% recall.",
              data=table(["Platform", "Threshold", "Precision", "Recall", "F1"], sweep_rows)),
         card("Cumulative gains", both(gains), sub="Check the highest scores first",
@@ -592,52 +596,52 @@ def faq(D):
 
 CSS = """
 :root {
-  --backdrop: #d9dadd; --shell: #f2f2f3; --card: #fbfbfc; --raise: #ffffff;
-  --ink: #111214; --ink-2: #45474d; --muted: #85878e; --faint: #8f9197; --rule: rgba(17,18,20,.08); --rule-2: rgba(17,18,20,.05);
+  --backdrop: #e4e5e8; --shell: #f4f4f5; --card: #fcfcfc; --raise: #ffffff;
+  --ink: #111214; --ink-2: #3f4147; --muted: #686b72; --faint: #8b8e95; --rule: rgba(17,18,20,.08); --rule-2: rgba(17,18,20,.05);
   --shadow: 0 1px 1px rgba(17,18,20,.03), 0 12px 32px -14px rgba(17,18,20,.14);
-  --blue: #2b5cf2; --blue-deep: #1a3dd8; --green: #1aa34a; --pink: #e2468c; --orange: #ef7a30; --mute: #a3a6ad; --line-ink: #1b1c20;
-  --d4: #0b5a29; --d3: #1a8642; --d2: #33a95b; --d1: #6cc58a; --d0: #d3d5da;
-  --q1: #e3eafe; --q2: #b3c7fb; --q3: #6f93f6; --q4: #2b5cf2; --q1-ink: #111214; --q2-ink: #111214; --q3-ink: #111214; --q4-ink: #ffffff;
-  --glass: rgba(255,255,255,.78); --glass-line: rgba(17,18,20,.08); --warn: #9a5b00; --warn-bg: #fff3df;
+  --accent: #2b5cf2; --accent-deep: #1a3dd8; --accent-soft: #e8eefe; --accent-ink: #1f48d6;
+  --n1: #eceef1; --n2: #d5d7dc; --n3: #8f929a; --n4: #6d7078; --n5: #2c2e33;
+  --inv: #141518; --inv-ink: #ffffff; --inv-2: rgba(255,255,255,.72);
+  --glass: rgba(255,255,255,.8); --glass-line: rgba(17,18,20,.08); --warn: #8a5300; --warn-bg: #fbf3e4;
   --nav-on: #17181b; --nav-on-ink: #ffffff;
   --font: "Geist", system-ui, -apple-system, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
-  --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --backdrop: #050506; --shell: #0f1013; --card: #17181c; --raise: #1d1e23;
-    --ink: #f2f3f5; --ink-2: #b9bbc2; --muted: #8a8d96; --faint: #7a7d86; --rule: rgba(255,255,255,.09); --rule-2: rgba(255,255,255,.05);
+    --ink: #f2f3f5; --ink-2: #c3c5cc; --muted: #9497a0; --faint: #80838c; --rule: rgba(255,255,255,.09); --rule-2: rgba(255,255,255,.05);
     --shadow: 0 1px 1px rgba(0,0,0,.4), 0 14px 34px -16px rgba(0,0,0,.7);
-    --blue: #5584ff; --blue-deep: #3a66f0; --green: #1f9a4a; --pink: #dc4d8e; --orange: #d4682a; --mute: #5d6069; --line-ink: #e9eaee;
-    --d4: #b4ecc7; --d3: #62cc86; --d2: #2fa65a; --d1: #1e7a41; --d0: #3a3d45;
-    --q1: #1d2547; --q2: #26398a; --q3: #3d63e0; --q4: #8fb0ff; --q1-ink: #f2f3f5; --q2-ink: #f2f3f5; --q3-ink: #ffffff; --q4-ink: #0b0c10;
-    --glass: rgba(29,30,35,.82); --glass-line: rgba(255,255,255,.1); --warn: #f2b766; --warn-bg: #2d2415;
+    --accent: #5f8bff; --accent-deep: #3a66f0; --accent-soft: #1d2747; --accent-ink: #a9c0ff;
+    --n1: #24262c; --n2: #383b42; --n3: #6b6f79; --n4: #9a9ea7; --n5: #e3e4e8;
+    --inv: #26272d; --inv-ink: #ffffff; --inv-2: rgba(255,255,255,.7);
+    --glass: rgba(29,30,35,.84); --glass-line: rgba(255,255,255,.1); --warn: #f2b766; --warn-bg: #2a2216;
     --nav-on: #f2f3f5; --nav-on-ink: #111214; color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --backdrop: #050506; --shell: #0f1013; --card: #17181c; --raise: #1d1e23;
-  --ink: #f2f3f5; --ink-2: #b9bbc2; --muted: #8a8d96; --faint: #7a7d86; --rule: rgba(255,255,255,.09); --rule-2: rgba(255,255,255,.05);
+  --ink: #f2f3f5; --ink-2: #c3c5cc; --muted: #9497a0; --faint: #80838c; --rule: rgba(255,255,255,.09); --rule-2: rgba(255,255,255,.05);
   --shadow: 0 1px 1px rgba(0,0,0,.4), 0 14px 34px -16px rgba(0,0,0,.7);
-  --blue: #5584ff; --blue-deep: #3a66f0; --green: #1f9a4a; --pink: #dc4d8e; --orange: #d4682a; --mute: #5d6069; --line-ink: #e9eaee;
-  --d4: #b4ecc7; --d3: #62cc86; --d2: #2fa65a; --d1: #1e7a41; --d0: #3a3d45;
-  --q1: #1d2547; --q2: #26398a; --q3: #3d63e0; --q4: #8fb0ff; --q1-ink: #f2f3f5; --q2-ink: #f2f3f5; --q3-ink: #ffffff; --q4-ink: #0b0c10;
-  --glass: rgba(29,30,35,.82); --glass-line: rgba(255,255,255,.1); --warn: #f2b766; --warn-bg: #2d2415;
+  --accent: #5f8bff; --accent-deep: #3a66f0; --accent-soft: #1d2747; --accent-ink: #a9c0ff;
+  --n1: #24262c; --n2: #383b42; --n3: #6b6f79; --n4: #9a9ea7; --n5: #e3e4e8;
+  --inv: #26272d; --inv-ink: #ffffff; --inv-2: rgba(255,255,255,.7);
+  --glass: rgba(29,30,35,.84); --glass-line: rgba(255,255,255,.1); --warn: #f2b766; --warn-bg: #2a2216;
   --nav-on: #f2f3f5; --nav-on-ink: #111214; color-scheme: dark;
 }
 * { box-sizing: border-box; }
 body { background: var(--backdrop); color: var(--ink); font-family: var(--font); font-size: 15px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
 .shell { max-width: 1280px; margin: 0 auto; background: var(--shell); border-radius: 40px; padding-inline: 40px; padding-block: 28px 48px; display: grid; gap: 28px; }
 .page-wrap { padding-inline: 16px; padding-block: 16px; }
-:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 8px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
 h1, h2, h3 { margin: 0; font-weight: 500; letter-spacing: -.02em; text-wrap: balance; }
 p { margin: 0; }
-a { color: var(--blue); }
+a { color: var(--accent-ink); }
 /* top bar */
-.top { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+.top { display: flex; align-items: center; justify-content: space-between; gap: 16px 20px; flex-wrap: wrap; }
+.top-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; min-width: 0; max-width: 100%; }
 .brand { display: flex; align-items: center; gap: 12px; font-size: 26px; font-weight: 500; letter-spacing: -.03em; }
-.mark { width: 34px; height: 34px; border-radius: 9px; background: linear-gradient(135deg, #ffb238, #f07a1a); display: grid; place-items: center; box-shadow: 0 6px 14px -6px rgba(240,122,26,.7), inset 0 1px 0 rgba(255,255,255,.35); }
-.mark svg { width: 20px; height: 20px; }
+.mark { width: 34px; height: 34px; border-radius: 9px; background: var(--nav-on); display: grid; place-items: center; box-shadow: 0 6px 14px -8px rgba(0,0,0,.5); }
+.mark svg { width: 20px; height: 20px; } .mk { fill: var(--nav-on-ink); opacity: .55; } .mk.a { fill: var(--accent); opacity: 1; }
 nav.pills { display: flex; gap: 4px; overflow-x: auto; max-width: 100%; scrollbar-width: none; }
 nav.pills a { color: var(--ink); text-decoration: none; font-size: 15px; padding: 10px 18px; border-radius: 14px; white-space: nowrap; }
 nav.pills a:hover { background: var(--rule-2); }
@@ -648,7 +652,7 @@ h1 { font-size: clamp(40px, 7vw, 76px); line-height: 1; letter-spacing: -.045em;
 .dates { display: flex; align-items: center; background: var(--card); border: 1px solid var(--rule); border-radius: 16px; overflow: hidden; box-shadow: var(--shadow); flex-wrap: wrap; }
 .dates span { display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; font-size: 14px; white-space: nowrap; }
 .dates .vs { color: var(--muted); background: var(--rule-2); }
-.dates svg { width: 16px; height: 16px; stroke: var(--ink-2); fill: none; }
+.dates svg, .seg-ctl svg { width: 16px; height: 16px; stroke: currentColor; fill: none; flex: none; }
 /* cards + grid */
 .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
 .span2 { grid-column: span 2; } .span3 { grid-column: 1 / -1; }
@@ -659,23 +663,21 @@ h1 { font-size: clamp(40px, 7vw, 76px); line-height: 1; letter-spacing: -.045em;
 details.more > summary { position: absolute; top: 20px; right: 20px; width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--rule); background: var(--raise);
   display: grid; place-items: center; list-style: none; cursor: pointer; color: var(--ink); font-size: 18px; letter-spacing: 1px; line-height: 1; }
 details.more > summary::-webkit-details-marker { display: none; }
-details.more > summary:hover { background: var(--rule-2); }
+details.more > summary:hover { background: var(--n1); }
 details.more[open] > summary { background: var(--nav-on); color: var(--nav-on-ink); }
 .more-body { display: grid; gap: 10px; }
-.info { width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--rule); background: var(--raise); color: var(--muted); font: 600 11px/1 var(--font);
+.info { position: relative; width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--rule); background: var(--raise); color: var(--muted); font: 600 11px/1 var(--font);
   display: inline-grid; place-items: center; cursor: help; padding: 0; margin-left: 6px; vertical-align: middle; flex: none; }
-.info:hover { color: var(--ink); border-color: var(--muted); }
+.info::after { content: ""; position: absolute; inset: -6px; }
+.info:hover { color: var(--ink); border-color: var(--n3); }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12.5px; color: var(--ink-2); }
 .key { display: inline-flex; align-items: center; gap: 6px; }
 .sw { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
-.c-blue { background: var(--blue); } .c-orange { background: var(--orange); } .c-green { background: var(--green); } .c-pink { background: var(--pink); }
-.c-mute { background: var(--mute); } .c-ink { background: var(--line-ink); } .c-ref { background: none; border-top: 2px dashed var(--mute); height: 0; border-radius: 0; width: 14px; }
-.sw.d4 { background: var(--d4); } .sw.d3 { background: var(--d3); } .sw.d2 { background: var(--d2); } .sw.d1 { background: var(--d1); } .sw.d0 { background: var(--d0); }
-/* hatch + solid fills */
-.hatch-blue, .cbar.hatch { background: repeating-linear-gradient(135deg, var(--blue) 0 2px, transparent 2px 7px), linear-gradient(180deg, color-mix(in srgb, var(--blue) 16%, transparent), color-mix(in srgb, var(--blue) 3%, transparent)); }
-.hatch-green { background: repeating-linear-gradient(135deg, var(--green) 0 2px, transparent 2px 7px), color-mix(in srgb, var(--green) 10%, transparent); }
-.hatch-pink { background: repeating-linear-gradient(135deg, var(--pink) 0 2px, transparent 2px 7px), color-mix(in srgb, var(--pink) 10%, transparent); }
-.solid, .cbar.solid { background: linear-gradient(180deg, var(--blue-deep), var(--blue) 55%, color-mix(in srgb, var(--blue) 75%, #ffffff)); box-shadow: inset 0 1px 0 rgba(255,255,255,.25); }
+.c-acc { background: var(--accent); } .c-n2 { background: var(--n2); } .c-n3 { background: var(--n3); } .c-n4 { background: var(--n4); } .c-n5 { background: var(--n5); }
+.c-ref { background: none; border-top: 2px dashed var(--n3); height: 0; border-radius: 0; width: 14px; }
+/* fills: neutral hatch by default, accent only for emphasis */
+.hatch-n, .cbar.hatch { background: repeating-linear-gradient(135deg, var(--n3) 0 1.5px, transparent 1.5px 6px), var(--n1); }
+.solid, .cbar.solid { background: linear-gradient(180deg, var(--accent-deep), var(--accent) 60%, color-mix(in srgb, var(--accent) 78%, #ffffff)); box-shadow: inset 0 1px 0 rgba(255,255,255,.25); }
 /* hero columns */
 .cols { display: grid; gap: 0; }
 .cols-row { display: grid; grid-template-columns: 46px repeat(5, minmax(0, 1fr)); }
@@ -685,7 +687,7 @@ details.more[open] > summary { background: var(--nav-on); color: var(--nav-on-in
 .cv { font-size: clamp(22px, 2.6vw, 34px); color: var(--faint); letter-spacing: -.03em; line-height: 1.1; }
 .cn { font-size: 12px; color: var(--muted); }
 .ch.on .cl, .ch.on .cv { color: var(--ink); }
-.ch.on, .cc.on { background: linear-gradient(180deg, color-mix(in srgb, var(--blue) 10%, transparent), color-mix(in srgb, var(--blue) 2%, transparent)); }
+.ch.on, .cc.on { background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 9%, transparent), color-mix(in srgb, var(--accent) 2%, transparent)); }
 .cols-row.plot { position: relative; height: 250px; }
 .cc { position: relative; display: flex; align-items: flex-end; padding-inline: 0; }
 .cbar { width: 100%; border-radius: 4px 4px 0 0; }
@@ -699,14 +701,11 @@ details.more[open] > summary { background: var(--nav-on); color: var(--nav-on-in
 .pill i { width: 1px; height: 14px; background: var(--rule); }
 .pill.float { position: absolute; right: calc(20% - 40px); top: 38%; transform: translateX(-20%); }
 .pill.pin { position: absolute; transform: translate(-6%, 0); padding: 4px 10px; font-size: 12px; }
-.ask { margin-top: 2px; border-radius: 20px; padding: 14px 18px 16px; display: grid; gap: 10px;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--blue) 14%, transparent), color-mix(in srgb, var(--blue) 5%, transparent)); }
+.ask { margin-top: 2px; border-radius: 20px; padding: 14px 18px 16px; display: grid; gap: 10px; background: var(--n1); }
 .ask-q { display: flex; align-items: center; gap: 10px; font-weight: 500; color: var(--ink-2); }
-.spark { color: var(--blue); font-size: 18px; }
+.spark { color: var(--accent); font-size: 18px; }
 .ask-a { background: var(--raise); border-radius: 14px; padding: 12px 16px; box-shadow: 0 4px 16px -8px rgba(17,18,20,.18); }
-.chip { display: inline-block; background: #fff1e2; color: #b4560b; border: 1px solid #f7c99a; border-radius: 8px; padding: 1px 8px; font-weight: 500; }
-:root[data-theme="dark"] .chip { background: #3a2412; color: #ffb877; border-color: #6a3f1d; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .chip { background: #3a2412; color: #ffb877; border-color: #6a3f1d; } }
+.chip { display: inline-block; background: var(--accent-soft); color: var(--accent-ink); border-radius: 8px; padding: 1px 8px; font-weight: 500; }
 /* stat + progress */
 .big { font-size: clamp(56px, 7vw, 84px); line-height: .95; letter-spacing: -.05em; font-weight: 500; }
 .big.sm { font-size: clamp(44px, 5vw, 60px); }
@@ -718,38 +717,45 @@ details.more[open] > summary { background: var(--nav-on); color: var(--nav-on-in
 .pb-top b { color: var(--ink); font-weight: 500; font-variant-numeric: tabular-nums; }
 .pb-track { height: 14px; border-radius: 999px; background: var(--rule-2); overflow: hidden; }
 .pb-fill { height: 100%; border-radius: 999px; min-width: 6px; }
-/* dot matrix */
+/* dot matrix: accent = measured, neutral steps = estimate confidence, ring = not separable */
 .dm { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 12px; align-items: center; }
 .dm-lab { font-size: 14px; font-weight: 500; display: grid; } .dm-lab small { color: var(--muted); font-weight: 400; font-size: 12px; }
 .dm-grid { display: grid; grid-template-columns: repeat(20, minmax(0, 1fr)); gap: 3px; max-width: 260px; }
 .dt { aspect-ratio: 1; border-radius: 50%; display: block; }
-.dt.d4 { background: var(--d4); } .dt.d3 { background: var(--d3); } .dt.d2 { background: var(--d2); } .dt.d1 { background: var(--d1); } .dt.d0 { background: var(--d0); }
-/* gradient card */
-.glow { justify-content: space-between; min-height: 300px; color: #ffffff; border: 0; overflow: hidden; isolation: isolate;
-  background: radial-gradient(120% 90% at 100% 0%, #e2774a 0%, rgba(226,119,74,0) 60%), linear-gradient(160deg, #c9653f 0%, #8d6f93 45%, #2f5aa8 100%); }
-.glow::after { content: ""; position: absolute; inset: 0; z-index: -1; opacity: .35; mix-blend-mode: overlay;
+.m { background: var(--accent); } .h { background: var(--n5); } .md { background: var(--n4); } .l { background: var(--n2); }
+.x { background: transparent; box-shadow: inset 0 0 0 1.5px var(--n3); }
+.sw.m, .sw.h, .sw.md, .sw.l, .sw.x { border-radius: 50%; }
+/* inverse card */
+.inv { justify-content: space-between; min-height: 300px; background: var(--inv); color: var(--inv-ink); border: 0; overflow: hidden; isolation: isolate; }
+.inv::after { content: ""; position: absolute; inset: 0; z-index: -1; opacity: .18; mix-blend-mode: overlay;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
-.pill.glass { color: #ffffff; background: rgba(255,255,255,.16); border-color: rgba(255,255,255,.3); align-self: flex-start; }
-.glow-num { font-size: clamp(72px, 9vw, 112px); line-height: .9; letter-spacing: -.05em; font-weight: 500; text-shadow: 0 2px 18px rgba(0,0,0,.18); }
-.glow-sub { font-size: 14px; color: rgba(255,255,255,.92); max-width: 30ch; }
-/* dot-range */
+.inv::before { content: ""; position: absolute; right: -60px; bottom: -60px; width: 220px; height: 220px; border-radius: 50%; z-index: -1;
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 45%, transparent), transparent 70%); }
+.pill.glass { color: var(--inv-ink); background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.2); align-self: flex-start; box-shadow: none; }
+.inv-num { font-size: clamp(72px, 9vw, 112px); line-height: .9; letter-spacing: -.05em; font-weight: 500; }
+.inv-sub { font-size: 14px; color: var(--inv-2); max-width: 30ch; }
+/* dot-range: dark = Instagram side, light = Facebook side, accent = closest to 1x */
 .dr { display: grid; gap: 2px; }
 .dr-row { display: grid; grid-template-columns: minmax(0, 150px) minmax(0, 1fr); gap: 14px; align-items: center; }
-.dr-l { font-size: 13.5px; color: var(--ink-2); }
+.dr-l { font-size: 13.5px; color: var(--ink-2); } .dr-l.best { color: var(--ink); font-weight: 600; }
 .dr-t { position: relative; height: 30px; }
 .ax .dr-t { height: 18px; }
 .dr-g { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--rule-2); }
-.dr-one { position: absolute; top: -2px; bottom: -2px; border-left: 1.5px dashed var(--mute); }
+.dr-one { position: absolute; top: -2px; bottom: -2px; border-left: 1.5px dashed var(--n3); }
 .dr-x { position: absolute; transform: translateX(-50%); font-size: 12px; color: var(--muted); }
-.dr-w { position: absolute; height: 4px; border-radius: 2px; opacity: .45; }
+.dr-w { position: absolute; height: 4px; border-radius: 2px; opacity: .35; }
 .dr-w.t { top: 7px; } .dr-w.b { top: 19px; }
 .dr-d { position: absolute; width: 11px; height: 11px; border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 0 0 2px var(--card); }
+.dr-d::after { content: ""; position: absolute; inset: -7px; }
 .dr-d.t { top: 9px; } .dr-d.b { top: 21px; }
+.k-ig { background: var(--n5); } .k-fb { background: var(--n3); }
+.dr-d.best { background: var(--accent); width: 13px; height: 13px; } .dr-w.best { background: var(--accent); opacity: .45; }
 /* findings */
 .finds { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
 .finds li { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 12px; align-items: start; font-size: 16px; }
-.finds .n { width: 26px; height: 26px; border-radius: 50%; background: var(--nav-on); color: var(--nav-on-ink); display: grid; place-items: center; font-size: 13px; }
-.finds .chk { color: var(--blue); font-size: 16px; text-align: center; }
+.finds .n { width: 26px; height: 26px; border-radius: 50%; background: var(--n1); color: var(--ink); display: grid; place-items: center; font-size: 13px; font-weight: 500; }
+.finds li:nth-child(3) .n { background: var(--accent); color: #ffffff; }
+.finds .chk { color: var(--muted); font-size: 16px; text-align: center; }
 .caveat { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; background: var(--warn-bg); border-radius: 16px; padding: 12px 14px; font-size: 14.5px; }
 .pill.warn { background: transparent; border-color: color-mix(in srgb, var(--warn) 40%, transparent); color: var(--warn); box-shadow: none; padding: 3px 10px; font-weight: 500; }
 /* model block */
@@ -757,7 +763,8 @@ details.more[open] > summary { background: var(--nav-on); color: var(--nav-on-in
 .block-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
 h2 { font-size: clamp(30px, 4vw, 44px); letter-spacing: -.035em; }
 .seg-ctl { display: inline-flex; background: var(--card); border: 1px solid var(--rule); border-radius: 14px; padding: 4px; box-shadow: var(--shadow); }
-.seg-ctl button { font: inherit; border: 0; background: none; color: var(--ink-2); padding: 8px 18px; border-radius: 10px; cursor: pointer; }
+.seg-ctl button { font: inherit; font-size: 14px; border: 0; background: none; color: var(--ink-2); padding: 8px 16px; border-radius: 10px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; }
+.seg-ctl button:hover { color: var(--ink); }
 .seg-ctl button[aria-pressed="true"] { background: var(--nav-on); color: var(--nav-on-ink); }
 .tiles { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
 .tile { background: var(--card); border: 1px solid var(--rule-2); border-radius: 20px; box-shadow: var(--shadow); padding: 14px 16px; display: grid; gap: 2px; }
@@ -770,29 +777,30 @@ h2 { font-size: clamp(30px, 4vw, 44px); letter-spacing: -.035em; }
 .cm { border-radius: 16px; padding: 16px 8px; text-align: center; display: grid; gap: 2px; }
 .cm b { font-size: 30px; font-weight: 500; letter-spacing: -.03em; line-height: 1.1; }
 .cm span { font-size: 12px; opacity: .85; }
-.cm.q1 { background: var(--q1); color: var(--q1-ink); } .cm.q2 { background: var(--q2); color: var(--q2-ink); }
-.cm.q3 { background: var(--q3); color: var(--q3-ink); } .cm.q4 { background: linear-gradient(160deg, var(--blue-deep), var(--q4)); color: var(--q4-ink); }
+.cm-a { background: linear-gradient(160deg, var(--accent-deep), var(--accent)); color: #ffffff; }
+.cm-k { background: var(--n5); color: var(--card); }
+.cm-l { background: var(--n1); color: var(--ink); }
 .note { color: var(--muted); font-size: 13.5px; display: flex; align-items: center; }
 /* svg */
 svg.defs { position: absolute; width: 0; height: 0; overflow: hidden; }
 svg.chart { width: 100%; height: auto; display: block; overflow: visible; }
 .plot-wrap { position: relative; }
 svg .grid { stroke: var(--rule); stroke-width: 1; }
-svg .axis { stroke: var(--mute); stroke-width: 1; }
-svg .ref, svg .ln.ln-ref { stroke: var(--mute); stroke-width: 1.5; stroke-dasharray: 4 4; fill: none; }
+svg .axis { stroke: var(--n3); stroke-width: 1; }
+svg .ref, svg .ln.ln-ref { stroke: var(--n3); stroke-width: 1.5; stroke-dasharray: 4 4; fill: none; }
 svg .tick { fill: var(--muted); font-size: 11px; font-family: var(--font); }
 svg .axlab { fill: var(--ink-2); font-size: 11.5px; font-family: var(--font); }
 svg .ln { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
-svg .ln-blue { stroke: var(--blue); } svg .ln-pink { stroke: var(--pink); stroke-width: 2.5; } svg .ln-mute { stroke: var(--mute); } svg .ln-ink { stroke: var(--line-ink); }
-svg .area { fill: url(#wash-blue); }
-svg .vfill { fill: url(#vhatch-pink); }
-svg .dot { stroke: var(--card); stroke-width: 2; } svg .dot.ln-blue { fill: var(--blue); }
-svg .bar-blue { fill: url(#hatch-blue); } svg .bar-green { fill: url(#hatch-green); }
+svg .ln-acc { stroke: var(--accent); stroke-width: 2.5; } svg .ln-n3 { stroke: var(--n3); } svg .ln-n4 { stroke: var(--n4); } svg .ln-n5 { stroke: var(--n5); }
+svg .area { fill: url(#wash-a); }
+svg .vfill { fill: url(#vhatch-n); }
+svg .dot { stroke: var(--card); stroke-width: 2; } svg .dot.ln-acc { fill: var(--accent); }
+svg .bar-a { fill: url(#hatch-a); } svg .bar-n { fill: url(#hatch-n); }
 svg .hit { fill: transparent; cursor: crosshair; } svg .hit:hover { fill: var(--ink); fill-opacity: .12; }
-.st-blue { stop-color: var(--blue); }
-.hb-blue { fill: var(--blue); } .hb-bg-blue { fill: var(--blue); fill-opacity: .1; }
-.hb-green { fill: var(--green); } .hb-bg-green { fill: var(--green); fill-opacity: .1; }
-.hb-pink { fill: var(--pink); fill-opacity: .55; } .hb-bg-pink { fill: var(--pink); fill-opacity: .05; }
+.st-a { stop-color: var(--accent); }
+.hb-a { fill: var(--accent); } .hb-bg-a { fill: var(--accent); fill-opacity: .12; }
+.hb-n { fill: var(--n3); } .hb-bg-n { fill: var(--n3); fill-opacity: .1; }
+.hb-vn { fill: var(--n3); fill-opacity: .45; }
 /* tables + faq */
 .table-wrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: 16px; background: var(--raise); min-width: 0; }
 table { border-collapse: collapse; width: 100%; font-size: 13.5px; font-variant-numeric: tabular-nums; }
@@ -800,7 +808,7 @@ th, td { padding: 9px 14px; text-align: left; border-bottom: 1px solid var(--rul
 th { font-size: 12px; color: var(--muted); font-weight: 500; }
 td.r, th.r { text-align: right; white-space: nowrap; }
 tr:last-child td { border-bottom: 0; }
-tr.hl td { background: color-mix(in srgb, var(--blue) 9%, transparent); }
+tr.hl td { background: var(--accent-soft); }
 .faq { display: grid; gap: 10px; }
 details.qa { background: var(--card); border: 1px solid var(--rule-2); border-radius: 22px; box-shadow: var(--shadow); }
 details.qa > summary { list-style: none; cursor: pointer; padding: 18px 22px; font-size: 17px; font-weight: 500; display: flex; justify-content: space-between; align-items: center; gap: 16px; }
@@ -831,16 +839,17 @@ footer { color: var(--muted); font-size: 13px; display: flex; justify-content: s
   .gl { left: 34px; }
   .ch { padding-inline: 6px; } .cl { font-size: 11px; white-space: normal; }
   .cols-row.plot { height: 200px; }
-  .pill.float { position: static; transform: none; margin-top: 10px; white-space: normal; }
   .cols-row.plot .pill.float { display: none; }
-  .pill.mobile { display: inline-flex; }
+  .pill.float.mobile { display: block; position: static; transform: none; margin-top: 10px; border-radius: 16px; white-space: normal; line-height: 1.6; }
+  .pill.mobile i { display: inline-block; margin: 0 6px; vertical-align: middle; }
   .dr-row { grid-template-columns: minmax(0, 1fr); gap: 0; }
   .ax .dr-l { display: none; }
   .dm { grid-template-columns: minmax(0, 1fr); }
   .brand { font-size: 22px; }
+  .top-right { width: 100%; justify-content: space-between; }
+  .seg-ctl.theme button span { display: none; }
 }
 @media (min-width: 721px) { .pill.mobile { display: none; } }
-@media (max-width: 720px) { .pill.float.mobile { display: block; border-radius: 16px; white-space: normal; line-height: 1.6; } .pill.mobile i { display: inline-block; margin: 0 6px; vertical-align: middle; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 """
 
@@ -868,6 +877,20 @@ JS = """
       document.querySelectorAll('[data-pf]').forEach(function (el) { el.hidden = el.getAttribute('data-pf') !== p; });
     });
   });
+  var root = document.documentElement, tbtn = document.querySelectorAll('[data-theme-btn]');
+  var mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+  function effective() { var t = root.getAttribute('data-theme'); return t === 'dark' || t === 'light' ? t : (mq && mq.matches ? 'dark' : 'light'); }
+  function sync() { var e = effective(); tbtn.forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-theme-btn') === e ? 'true' : 'false'); }); }
+  try { var saved = localStorage.getItem('po-theme'); if (saved === 'light' || saved === 'dark') root.setAttribute('data-theme', saved); } catch (err) {}
+  tbtn.forEach(function (b) {
+    b.addEventListener('click', function () {
+      var t = b.getAttribute('data-theme-btn'); root.setAttribute('data-theme', t);
+      try { localStorage.setItem('po-theme', t); } catch (err) {}
+      sync();
+    });
+  });
+  if (mq && mq.addEventListener) mq.addEventListener('change', sync);
+  sync();
   var links = document.querySelectorAll('nav.pills a');
   if ('IntersectionObserver' in window) {
     var io = new IntersectionObserver(function (es) {
@@ -882,8 +905,11 @@ JS = """
 """
 
 CAL = '<svg viewBox="0 0 24 24" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>'
-MARK = ('<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="9" width="4" height="8" rx="1.2" fill="#fff" opacity=".7"/>'
-        '<rect x="8" y="5" width="4" height="12" rx="1.2" fill="#fff"/><rect x="13" y="2" width="4" height="15" rx="1.2" fill="#fff" opacity=".85"/></svg>')
+MARK = ('<svg viewBox="0 0 20 20" aria-hidden="true"><rect class="mk" x="3" y="9" width="4" height="8" rx="1.2"/>'
+        '<rect class="mk" x="8" y="5" width="4" height="12" rx="1.2"/><rect class="mk a" x="13" y="2" width="4" height="15" rx="1.2"/></svg>')
+SUN = ('<svg viewBox="0 0 24 24" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/>'
+       '<path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4L6 18M18 6l1.4-1.4"/></svg>')
+MOON = '<svg viewBox="0 0 24 24" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>'
 
 
 def build():
@@ -898,7 +924,10 @@ def build():
 <div class="page-wrap"><div class="shell">
   <div class="top">
     <div class="brand"><span class="mark">{MARK}</span>paid/organic</div>
-    <nav class="pills" aria-label="Sections"><a class="on" href="#overview">Overview</a><a href="#findings">Findings</a><a href="#model">Model</a><a href="#faq">FAQ</a></nav>
+    <div class="top-right">
+      <nav class="pills" aria-label="Sections"><a class="on" href="#overview">Overview</a><a href="#findings">Findings</a><a href="#model">Model</a><a href="#faq">FAQ</a></nav>
+      <div class="seg-ctl theme" role="group" aria-label="Color theme"><button type="button" data-theme-btn="light" aria-pressed="true" aria-label="Light mode">{SUN}<span>Light</span></button><button type="button" data-theme-btn="dark" aria-pressed="false" aria-label="Dark mode">{MOON}<span>Dark</span></button></div>
+    </div>
   </div>
   <div class="title-row">
     <h1>Paid vs Organic</h1>
