@@ -8,7 +8,7 @@ Steps
   4. organic estimate                       (reconcile/estimate.py)
   5. PAID_STATUS, then stage + MERGE into {{TARGET_SCHEMA}}.PAID_CLASSIFICATION__POST (sql/09)
 
-Offline (default): read step 1 and 2 outputs from files, write results/paid_classification_<date>.csv (git-ignored).
+Offline (default): read step 1 and 2 outputs from files, write outputs/paid_classification_<date>.csv (git-ignored).
   python3 -m pipeline.run_daily --flags data/flags.csv --features data/detector_dataset_v2.psv
 Snowflake: pip install "snowflake-connector-python[pandas]"; set SNOWFLAKE_ACCOUNT, SNOWFLAKE_USER, SNOWFLAKE_ROLE,
 SNOWFLAKE_WAREHOUSE and SNOWFLAKE_PASSWORD (or SNOWFLAKE_PRIVATE_KEY_PATH).
@@ -56,10 +56,13 @@ def classify(flags, scores, run_date):
     status[no_ev & (d.model_score >= d.model_threshold)] = "PAID_PREDICTED"
     status[no_ev & (d.model_score < d.model_threshold)] = "ORGANIC_PREDICTED"
     d["paid_status"] = status.fillna("NOT_SCORED")
-    d.loc[~no_ev, ["model_score", "model_threshold"]] = np.nan     # the model only speaks where there is no evidence
+    # evidence always wins; the model score is kept on every scored post for comparison, but decides only without evidence
+    d["paid_basis"] = np.select([~no_ev, d.paid_status.isin(["PAID_PREDICTED", "ORGANIC_PREDICTED"])], ["evidence", "model"], None)
+    d["is_paid"] = d.paid_status.map(lambda s: None if s == "NOT_SCORED" else s in PAID)
     d["boosted"] = d.paid_status.isin(PAID)
     e = estimate(d)
     d = pd.concat([d.reset_index(drop=True), e], axis=1)
+    d.loc[d.paid_status == "NOT_SCORED", "organic_views_method"] = "public views (no paid record; model could not score)"
     d["paid_views_on_platform_est"] = (d.views_public_latest - d.organic_views_est).where(d.boosted).clip(lower=0)
     d["model_version"] = np.where(d.model_score.notna(), MODEL_VERSION, None)
     d["run_date"] = run_date
@@ -70,10 +73,11 @@ def classify(flags, scores, run_date):
 OUT_COLS = {  # table column -> frame column
     "POST_SCRAPER_REFERENCE_KEY": "psrk", "POST_PLATFORM": "platform", "POST_TYPE": "post_type", "POST_URL": "post_url",
     "POST_PUBLISHED_DATE": "pub", "PAID_STATUS": "paid_status", "BOOST_EVIDENCE": "boost_evidence",
-    "BOOST_START_DATE": "boost_start", "FIRST_SPEND_DATE": "first_spend", "SPEND_USD": "spend",
+    "IS_PAID": "is_paid", "PAID_BASIS": "paid_basis",
+    "BOOST_START_DATE": "boost_start", "FIRST_SPEND_DATE": "first_spend", "AD_SPEND": "spend",
     "PAID_IMPRESSIONS_IG": "paid_impressions_ig", "PAID_IMPRESSIONS_FB": "paid_impressions_fb",
     "PAID_PLAYS_IG": "paid_plays_ig", "PAID_PLAYS_FB": "paid_plays_fb",
-    "MODEL_SCORE": "model_score", "MODEL_THRESHOLD": "model_threshold", "MODEL_VERSION": "model_version",
+    "MODEL_SCORE": "model_score", "MODEL_THRESHOLD": "model_threshold", "MODEL_VERSION": "model_version", "MODEL_NOTE": "model_note",
     "VIEWS_PUBLIC_LATEST": "views_public_latest", "VIEWS_OPTIN_LATEST": "views_private_latest",
     "VIEWS_PUBLIC_PREBOOST": "views_before_first_spend", "PREBOOST_AGE_DAYS": "preboost_age_days",
     "POST_AGE_DAYS": "age_latest", "ORGANIC_VIEWS_EST": "organic_views_est", "ORGANIC_VIEWS_METHOD": "organic_views_method",
@@ -81,8 +85,36 @@ OUT_COLS = {  # table column -> frame column
     "RUN_DATE": "run_date", "UPDATED_AT": "updated_at"}
 
 
+def add_model_note(d, features):
+    """Why the model has no score for a post (the model needs >= 28 days and >= 5 public reads in days 0-30, posts from 2025)."""
+    have = set(zip(features.psrk, features.platform))
+    pub = pd.to_datetime(d.pub, errors="coerce")
+    infeat = pd.Series([(a, b) in have for a, b in zip(d.psrk, d.platform)], index=d.index)
+    d["model_note"] = np.select(
+        [d.model_score.notna(), pub < pd.Timestamp("2025-01-01"), d.age_latest < 28, ~infeat],
+        [None, "published before 2025", "under 28 days of data", "fewer than 5 public reads in days 0-30"],
+        "no public views or followers")
+    return d
+
+
 def to_table(d):
-    return pd.DataFrame({k: d[v] for k, v in OUT_COLS.items()})
+    """Table columns in order. A column the input does not carry (e.g. POST_URL from a compact export) is left empty."""
+    return pd.DataFrame({k: (d[v] if v in d else pd.Series([None] * len(d))) for k, v in OUT_COLS.items()})
+
+
+def write_parquet(table, path):
+    t = table.copy()
+    for c in ["POST_PUBLISHED_DATE", "BOOST_START_DATE", "FIRST_SPEND_DATE", "RUN_DATE"]:
+        t[c] = pd.to_datetime(t[c], errors="coerce").dt.date
+    t["IS_PAID"] = t["IS_PAID"].astype("boolean")
+    for c in ["PAID_IMPRESSIONS_IG", "PAID_IMPRESSIONS_FB", "PAID_PLAYS_IG", "PAID_PLAYS_FB", "VIEWS_PUBLIC_LATEST", "VIEWS_OPTIN_LATEST",
+              "VIEWS_PUBLIC_PREBOOST", "PREBOOST_AGE_DAYS", "POST_AGE_DAYS", "ORGANIC_VIEWS_EST", "PAID_VIEWS_ON_PLATFORM_EST"]:
+        t[c] = pd.to_numeric(t[c], errors="coerce").round().astype("Int64")
+    if "POST_URL" in t and t["POST_URL"].isna().all():
+        t = t.drop(columns="POST_URL")
+    t.columns = [c.lower() for c in t.columns]
+    t.to_parquet(path, index=False)
+    return t
 
 
 def read_flags(path):
@@ -135,6 +167,7 @@ def main():
     ap.add_argument("--snowflake", action="store_true")
     ap.add_argument("--target-schema", default=None, help="DB.SCHEMA to MERGE into; omit to write CSV only")
     ap.add_argument("--run-date", default=str(dt.date.today()))
+    ap.add_argument("--parquet", default=None, help="also write the table to this Parquet file (needs pyarrow)")
     a = ap.parse_args()
 
     if a.snowflake:
@@ -151,14 +184,18 @@ def main():
         flags = read_flags(a.flags)
         features = build(load(a.features))
 
-    d = classify(flags, score(features), pd.Timestamp(a.run_date).date())
+    d = add_model_note(classify(flags, score(features), pd.Timestamp(a.run_date).date()), features)
     table = to_table(d)
     os.makedirs("results", exist_ok=True)
-    out = f"results/paid_classification_{a.run_date}.csv"
+    os.makedirs("outputs", exist_ok=True)   # row-level output: git-ignored
+    out = f"outputs/paid_classification_{a.run_date}.csv"
     table.to_csv(out, index=False)
     print(table.groupby(["POST_PLATFORM", "PAID_STATUS"]).size().to_string())
     print(table.groupby(["POST_PLATFORM", "ORGANIC_VIEWS_CONFIDENCE"]).size().to_string())
     print("wrote", out)
+    if a.parquet:
+        write_parquet(table, a.parquet)
+        print("wrote", a.parquet)
     if conn is not None and a.target_schema:
         write(conn, table, a.target_schema)
         print("merged into", f"{a.target_schema}.PAID_CLASSIFICATION__POST")

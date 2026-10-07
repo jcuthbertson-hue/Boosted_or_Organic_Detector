@@ -74,6 +74,20 @@ estimate (`reconcile/estimate.py`), and MERGEs into `PAID_CLASSIFICATION__POST` 
 (`python3 -m tests.test_pipeline`). The Snowflake read/write path is NOT tested yet: it needs a service account and a
 schema we may write to.
 
+## All-post export (Parquet)
+
+`python3 -m pipeline.run_daily --flags data/flags.csv --features data/features_all.psv --parquet outputs/paid_classification_<date>.parquet`
+writes one row per Instagram / TikTok campaign post (git-ignored; row-level). Join back to Snowflake on
+`POST_SCRAPER_REFERENCE_KEY` + `POST_PLATFORM` (BIRA mart). Key columns:
+
+| Column | Meaning |
+|---|---|
+| `is_paid` | True / False; empty when the post has no paid record and the model could not score it |
+| `paid_basis` | `evidence` (tag, ad link, opt-in or SocAPI gap, manual date) or `model` |
+| `paid_status`, `boost_evidence` | status and the strongest proof tier |
+| `model_score`, `model_threshold`, `model_note` | 0-1 score (posts with >= 28 days and >= 5 public reads in days 0-30), cut-off from train, reason when there is no score |
+| `organic_views_est`, `organic_views_method`, `organic_views_confidence` | organic views (opt-in measured, or pre-boost read x organic curve) |
+
 ## How to run
 
 ```bash

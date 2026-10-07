@@ -33,7 +33,9 @@ def test_classify():
     assert d.loc["a", "paid_status"] == "PAID_CONFIRMED" and d.loc["a", "organic_views_est"] == 8000
     assert d.loc["a", "organic_views_confidence"] == "measured"
     assert d.loc["b", "paid_status"] == "PAID_CONFIRMED" and d.loc["b", "organic_views_confidence"] == "high"
-    assert np.isnan(d.loc["b", "model_score"]), "model score must be blank when evidence exists"
+    assert d.loc["b", "paid_status"] == "PAID_CONFIRMED" and d.loc["b", "paid_basis"] == "evidence", "evidence must win over the model"
+    assert d.loc["e", "paid_basis"] == "model" and d.loc["e", "is_paid"] is True and d.loc["f", "is_paid"] is False
+    assert d.loc["g", "is_paid"] is None
     assert 5000 <= d.loc["b", "organic_views_est"] <= 100000
     assert d.loc["c", "organic_views_confidence"] == "low"
     assert d.loc["d", "paid_status"] == "PAID_MEASURED" and np.isnan(d.loc["d", "organic_views_est"])
@@ -44,6 +46,7 @@ def test_classify():
     assert (d.paid_views_on_platform_est.dropna() >= 0).all()
     t = to_table(d.reset_index())
     assert list(t.columns) == list(OUT_COLS) and len(t) == 7
+    assert t.POST_URL.notna().all()
 
 
 def test_estimate_never_above_public_and_never_below_preboost():
