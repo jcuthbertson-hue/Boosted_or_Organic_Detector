@@ -1,0 +1,26 @@
+{
+  "Tiktok": {
+    "boosted_posts_in_test": 130,
+    "post_recall": 0.915,
+    "spend_weighted_recall": 1.0,
+    "n_with_spend": 130,
+    "median_spend_detected": 12298,
+    "median_spend_missed": 3,
+    "paid_view_weighted_recall": 1.0,
+    "n_optin": 3,
+    "median_paid_share_detected": -0.006,
+    "median_paid_share_missed": NaN
+  },
+  "Instagram": {
+    "boosted_posts_in_test": 193,
+    "post_recall": 0.663,
+    "spend_weighted_recall": 0.783,
+    "n_with_spend": 15,
+    "median_spend_detected": 7173,
+    "median_spend_missed": 0,
+    "paid_view_weighted_recall": 0.997,
+    "n_optin": 186,
+    "median_paid_share_detected": 0.962,
+    "median_paid_share_missed": 0.318
+  }
+}

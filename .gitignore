@@ -1,0 +1,9 @@
+# Row-level warehouse data, client names and trained models stay out of git (this repo is public).
+data/
+models/
+results/test_predictions.csv
+results/predicted_boost_scores.csv
+results/llm/
+llm/harness/
+__pycache__/
+*.pyc

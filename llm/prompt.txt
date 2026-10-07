@@ -1,0 +1,9 @@
+You are a social media analyst. Decide if paid advertising (boosting) was applied to this creator post during its first 30 days.
+Background: Organic views are front-loaded (most views in the first days) and come with normal engagement. Paid boosting adds many views from people who do not follow the creator, often days after posting, with few extra likes or comments, so views can exceed followers and engagement rate falls.
+Platform: {platform}
+Creator followers: {followers}
+Public views on day 1: {v1}; day 3: {v3}; day 7: {v7}; day 14: {v14}; day 30: {v30}
+Likes on day 7: {l7}; day 30: {l30}
+Comments on day 30: {c30}
+Shares on day 30: {s30}
+Reply with only a number from 0 to 1: the probability that this post was boosted with paid ads.
