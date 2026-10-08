@@ -31,6 +31,8 @@ TRAIN_END = pd.Timestamp("2026-07-01")
 TEST_END = pd.Timestamp("2026-09-09")
 FRESH = (pd.Timestamp("2026-09-10"), pd.Timestamp("2026-09-24"))
 PLATFORMS = ["Tiktok", "Instagram"]
+# output names; --v21 switches to the v2.1 run (plan amendment 4: corrected Instagram labels, Instagram only)
+RUN = {"tag": "v2", "results": "results/model_v2", "models": "models/boost_detector_v2", "optin_fix": False}
 HORIZONS = [60, 30, 14]          # day 60 added in plan amendment 3 (exploratory; C1-C6 use days 30 and 14)
 
 
@@ -74,10 +76,10 @@ def dataset(d, H, platform, fset="base"):
     X, ok = features(d, H, fset)
     lab = d[f"lab{H}"]
     m = ok & (d.platform == platform) & lab.isin(["P", "N"])
-    cols = ["psrk", "platform", "pub", "creator", "client", "o14", "o30", "o60", "spend_day", "tag", f"lab{H}"]
+    cols = ["psrk", "platform", "pub", "creator", "client", "o14", "o30", "o60", f"ov{H}", "spend_day", "tag", f"lab{H}"]
     meta = d.loc[m, [c for c in dict.fromkeys(cols) if c in d]].copy()
     meta["y"] = (lab[m] == "P").astype(int)
-    o = meta[f"o{H}"]
+    o = meta[f"ov{H}"] if f"ov{H}" in meta else meta[f"o{H}"]     # corrected ratio when plan amendment 4 is on
     in_window = meta.spend_day.between(-3, H - 2)
     # material = what changes organic totals (pre-registered C1 definition)
     meta["material"] = np.where(platform == "Tiktok", meta.y == 1,
@@ -142,14 +144,27 @@ def develop(d, plan=None):
     """Train-only CV for every (horizon, platform, feature set, candidate). Rows are merged into
     results/model_v2_selection.csv (same key = replaced), so later rounds add to earlier ones."""
     plan = plan or {H: FEATURE_SETS for H in HORIZONS}
+    # each finished fit is appended to a .jsonl next to the table, so a stopped run resumes where it left off
+    part = f"{RUN['results']}_selection.partial.jsonl"
+    done = {}
+    if os.path.exists(part):
+        for line in open(part):
+            r = json.loads(line)
+            done[(r["H"], r["platform"], r["features"], r["model"])] = r
     rows = []
     for H, fsets in plan.items():
         for pf in PLATFORMS:
           for fset in fsets:
+            if all((H, pf, fset, name) in done for name in candidates()):
+                rows += [done[(H, pf, fset, name)] for name in candidates()]
+                continue
             X, meta = dataset(d, H, pf, fset)
             tr = (meta.pub < TRAIN_END).values
             Xt, yt, gt = X[tr], meta.y[tr], meta.creator[tr]
             for name, model in candidates().items():
+                if (H, pf, fset, name) in done:
+                    rows.append(done[(H, pf, fset, name)])
+                    continue
                 p = oof(model, Xt, yt, gt)
                 thr = pick_threshold(yt, p)
                 m = at(yt, p, thr, meta.material[tr])
@@ -157,9 +172,11 @@ def develop(d, plan=None):
                              "cv_roc_auc": roc_auc_score(yt, p), "cv_pr_auc": average_precision_score(yt, p), "thr": thr,
                              **{k: m[k] for k in ("precision", "recall", "f1", "material_recall")}, "ece": ece(yt, p)})
                 print(rows[-1], flush=True)
+                with open(part, "a") as fh:
+                    fh.write(json.dumps(rows[-1], default=float) + "\n")
     t = pd.DataFrame(rows)
     os.makedirs("results", exist_ok=True)
-    path = "results/model_v2_selection.csv"
+    path = f"{RUN['results']}_selection.csv"
     if os.path.exists(path):
         old = pd.read_csv(path)
         key = ["H", "platform", "features", "model"]
@@ -198,7 +215,7 @@ def evaluate(y, p, thr, meta):
 
 
 def final(d):
-    sel = pd.read_csv("results/model_v2_selection.csv")
+    sel = pd.read_csv(f"{RUN['results']}_selection.csv")
     report = {"train_end": str(TRAIN_END.date()), "test": ["2026-07-01", str(TEST_END.date())],
               "fresh": [str(FRESH[0].date()), str(FRESH[1].date())], "models": {}}
     os.makedirs("models", exist_ok=True)
@@ -236,7 +253,7 @@ def final(d):
                     out["p"], out["H"], out["split"] = p, H, name
                     preds.append(out)
             joblib.dump({"model": model, "features": list(X.columns), "feature_set": fset, "threshold": thr, "H": H, "platform": pf,
-                         "train_end": str(TRAIN_END.date()), "version": "v2"}, f"models/boost_detector_v2_{pf.lower()}_h{H}.joblib")
+                         "train_end": str(TRAIN_END.date()), "version": RUN["tag"]}, f"{RUN['models']}_{pf.lower()}_h{H}.joblib")
             report["models"][f"{pf}_h{H}"] = r
             t = r.get("test", {})
             print(f"{pf} H{H} {s.model} thr {thr}: TEST P {t.get('precision', float('nan')):.3f} R {t.get('recall', float('nan')):.3f} "
@@ -244,8 +261,9 @@ def final(d):
             if "fresh" in r:
                 f_ = r["fresh"]
                 print(f"   FRESH n {f_['n']} pos {f_['n_pos']}: P {f_['precision']:.3f} R {f_['recall']:.3f} F1 {f_['f1']:.3f} matR {f_['material_recall']:.3f}", flush=True)
-    pd.concat(preds).to_csv("results/model_v2_test_predictions.csv", index=False)   # row-level, git-ignored
-    json.dump(report, open("results/model_v2_report.json", "w"), indent=1, default=float)
+    pd.concat(preds).to_csv(f"{RUN['results']}_test_predictions.csv", index=False)   # row-level, git-ignored
+    report["labels"] = "corrected (plan amendment 4)" if RUN["optin_fix"] else "as pulled (sql/11)"
+    json.dump(report, open(f"{RUN['results']}_report.json", "w"), indent=1, default=float)
     return report
 
 
@@ -254,11 +272,18 @@ if __name__ == "__main__":
     ap.add_argument("--develop", action="store_true")
     ap.add_argument("--develop2", action="store_true", help="plan amendment 3: day-60 model and the jump / creator-norm features")
     ap.add_argument("--final", action="store_true")
+    ap.add_argument("--v21", action="store_true", help="plan amendment 4: corrected Instagram labels, Instagram models only, v2.1 file names")
     a = ap.parse_args()
-    d = load()
+    if a.v21:
+        RUN.update(tag="v2.1", results="results/model_v2_1", models="models/boost_detector_v2_1", optin_fix=True)
+        PLATFORMS[:] = ["Instagram"]
+    d = load(optin_fix=RUN["optin_fix"])
     if a.develop:
         develop(d)
     if a.develop2:
         develop(d, ROUND2)
+    if a.v21 and not (a.develop or a.develop2 or a.final):
+        develop(d, {60: ["base+creator", "base+creator+jump+cnorm"], 30: ["base+creator", "base+creator+jump+cnorm"],
+                    14: ["base+creator", "base+creator+jump+cnorm"]})
     if a.final:
         final(d)

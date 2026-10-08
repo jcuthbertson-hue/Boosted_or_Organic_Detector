@@ -1,0 +1,149 @@
+{
+ "targets": {
+  "C1": {
+   "Tiktok": {
+    "precision": 0.9453125,
+    "material_recall": 0.9166666666666666,
+    "ci95": {
+     "precision": [
+      0.9017857142857143,
+      0.9827623047450633
+     ],
+     "material_recall": [
+      0.8682170542635659,
+      0.959738255033557
+     ]
+    },
+    "pass": true
+   },
+   "Instagram": {
+    "precision": 0.9083333333333333,
+    "material_recall": 0.9130434782608695,
+    "ci95": {
+     "precision": [
+      0.8487331296154825,
+      0.9576447740112994
+     ],
+     "material_recall": [
+      0.8440005946313286,
+      0.9674990321331784
+     ]
+    },
+    "pass": true
+   }
+  },
+  "C2": {
+   "Instagram": {
+    "f1": 0.8825910931174088,
+    "goal": 0.8,
+    "ci95": [
+     0.8353413654618473,
+     0.9243697478991597
+    ],
+    "pass": true
+   },
+   "Tiktok": {
+    "f1": 0.9307692307692308,
+    "goal": 0.93,
+    "ci95": [
+     0.896260354853582,
+     0.9623523154386214
+    ],
+    "pass": true
+   }
+  },
+  "C3": {
+   "Instagram": {
+    "ece": 0.04484921752607128,
+    "pass": true
+   },
+   "Tiktok": {
+    "ece": 0.022672541702559057,
+    "pass": true
+   }
+  },
+  "C4": {
+   "coverage": {
+    "Instagram": 0.9984465470978675,
+    "Tiktok": 0.9978943822117409,
+    "all": 0.9981947378528904
+   },
+   "posts_in_base": 26035,
+   "untracked_note": "posts with no public read by day 7 are a data gap",
+   "same_posts": {
+    "Instagram": {
+     "posts": 506,
+     "f1_day30": 0.8773584905660378,
+     "f1_day14": 0.8085106382978723,
+     "gap": 0.06884785226816548
+    },
+    "Tiktok": {
+     "posts": 681,
+     "f1_day30": 0.8787878787878788,
+     "f1_day14": 0.8709677419354839,
+     "gap": 0.00782013685239491
+    }
+   },
+   "pass": false
+  },
+  "C5": {
+   "Instagram": {
+    "n": 176,
+    "n_pos": 16,
+    "precision": 0.75,
+    "material_recall": 0.9375,
+    "ci95": {
+     "precision": [
+      0.5333333333333333,
+      0.9230769230769231
+     ],
+     "material_recall": [
+      0.785515873015873,
+      1.0
+     ]
+    },
+    "pass": true
+   },
+   "Tiktok": {
+    "n": 164,
+    "n_pos": 10,
+    "precision": 0.6923076923076923,
+    "material_recall": 0.9,
+    "ci95": {
+     "precision": [
+      0.4166666666666667,
+      0.9232142857142857
+     ],
+     "material_recall": [
+      0.6666666666666666,
+      1.0
+     ]
+    },
+    "pass": true
+   }
+  },
+  "C6": {
+   "scores": 11,
+   "flagged": 11,
+   "distinct_posts": 9,
+   "posts_flagged_at_every_horizon": 9,
+   "by_platform": {
+    "Instagram": {
+     "posts": 8,
+     "scores": 10,
+     "flagged": 10,
+     "lowest_score": 0.549
+    },
+    "Tiktok": {
+     "posts": 1,
+     "scores": 1,
+     "flagged": 1,
+     "lowest_score": 0.99
+    }
+   },
+   "pass": true
+  }
+ },
+ "all_pass": false,
+ "labels": "corrected (plan amendment 4)"
+}

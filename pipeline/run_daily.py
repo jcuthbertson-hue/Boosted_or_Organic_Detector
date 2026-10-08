@@ -101,10 +101,12 @@ def classify(flags, scores, run_date):
     status[no_ev & (d.model_score >= d.model_threshold)] = "PAID_PREDICTED"
     status[no_ev & (d.model_score < d.model_threshold)] = "ORGANIC_PREDICTED"
     # measured organic: opt-in shows (almost) all public views are organic, so no boost added views. Beats the model.
-    # sql/05 optin_ratio = latest read with both values; older flag files only carry the latest totals
-    optin = pd.to_numeric(d["optin_ratio"], errors="coerce") if "optin_ratio" in d else \
-        d.views_private_latest / d.views_public_latest.where(d.views_public_latest > 0)
-    measured_org = no_ev & (d.platform == "Instagram") & (optin >= OPTIN_ORGANIC)
+    # sql/05 optin_ratio = ratio at the last read where opt-in still updated; older flag files only carry the latest totals
+    fallback = d.views_private_latest / d.views_public_latest.where(d.views_public_latest > 0)
+    optin = pd.to_numeric(d["optin_ratio"], errors="coerce").fillna(fallback) if "optin_ratio" in d else fallback
+    stale = d["optin_stale"].fillna(False).astype(bool) if "optin_stale" in d else pd.Series(False, index=d.index)
+    # stale opt-in only proves organic up to the freeze, so it is not measured organic today (plan amendment 4)
+    measured_org = no_ev & (d.platform == "Instagram") & (optin >= OPTIN_ORGANIC) & ~stale
     status[measured_org] = "ORGANIC_MEASURED"
     d["paid_status"] = status.fillna("NOT_SCORED")
     # evidence always wins; the model score is kept on every scored post for comparison, but decides only without evidence
@@ -170,12 +172,26 @@ def write_parquet(table, path):
     return t
 
 
-def read_flags(path):
+def read_flags(path, optin_live=None, tier_changes=None):
+    """Offline flags (sql/05 output). optin_live / tier_changes bring an older flags file up to plan amendment 4
+    (stale opt-in): the opt-in fields of the new sql/05, and the evidence tier of the posts it changes."""
     f = pd.read_csv(path, dtype={"psrk": str})
     f.columns = [c.lower() for c in f.columns]
     for c in ["pub", "obs_latest", "first_spend", "paid_date", "boost_start"]:
         if c in f:
             f[c] = pd.to_datetime(f[c], errors="coerce")
+    if optin_live and os.path.exists(optin_live):
+        o = pd.read_csv(optin_live, sep="|", header=None, dtype={"psrk": str},
+                        names=["psrk", "optin_ratio", "optin_ratio_latest", "optin_stale", "optin_freeze_age", "optin_views_frozen"])
+        o["optin_stale"] = o.optin_stale.astype(int).astype(bool)
+        o["platform"] = "Instagram"
+        f = f.merge(o, on=["psrk", "platform"], how="left", validate="one_to_one")
+    if tier_changes and os.path.exists(tier_changes):
+        c = pd.read_csv(tier_changes, sep="|", header=None, names=["psrk", "tier_new"], dtype=str).assign(platform="Instagram")
+        f = f.merge(c, on=["psrk", "platform"], how="left")
+        assert (f.boost_evidence[f.tier_new.notna()] == "MEASURED_OPTIN_GAP").all()
+        f["boost_evidence"] = f.tier_new.fillna(f.boost_evidence)
+        f = f.drop(columns="tier_new")
     return f
 
 
@@ -216,6 +232,8 @@ def write(conn, table, target_schema):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--flags", default="data/flags.csv", help="sql/05 output (offline mode)")
+    ap.add_argument("--optin-live", default=None, help="offline: opt-in fields of the amended sql/05 (psrk|ratio|latest|stale|freeze age|views)")
+    ap.add_argument("--tier-changes", default=None, help="offline: posts whose evidence tier the amended sql/05 changes (psrk|tier)")
     ap.add_argument("--features", default="data/detector_dataset_v2.psv", help="sql/02 output, pipe-separated (offline mode)")
     ap.add_argument("--features-v2", default=None, help="sql/11 output (model v2); replaces --features when given")
     ap.add_argument("--snowflake", action="store_true")
@@ -235,7 +253,7 @@ def main():
             flags[c] = pd.to_datetime(flags[c], errors="coerce")
     else:
         conn = None
-        flags = read_flags(a.flags)
+        flags = read_flags(a.flags, a.optin_live, a.tier_changes)
         features = build(load(a.features))
 
     if a.features_v2:

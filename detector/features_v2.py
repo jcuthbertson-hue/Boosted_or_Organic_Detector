@@ -12,7 +12,8 @@ RAW_COLS = ["psrk", "platform", "pub", "creator", "client", "n30", "n60", "a_min
             "v1", "v2", "v3", "v5", "v7", "v10", "v14", "v21", "v30", "v45", "v60",
             "l1", "l3", "l7", "l14", "l30", "l60", "c7", "c30", "s30", "followers",
             "r7", "r14", "r30", "r60", "o14", "o30", "spend_day", "tag", "paid_date", "lab30", "lab14"]
-LABEL_ONLY = ["o14", "o30", "o60", "spend_day", "tag", "paid_date", "lab30", "lab14", "lab60"]
+LABEL_ONLY = ["o14", "o30", "o60", "spend_day", "tag", "paid_date", "lab30", "lab14", "lab60", "ov14", "ov30", "ov60",
+              "fz14", "pg14", "fz30", "pg30", "fz60", "pg60", "fza", "pga", "stale14", "stale30", "stale60"]
 # sql/12: what happens during the biggest view jump (likes per new view), extra ages, day-60 opt-in (label only)
 EXTRA_COLS = ["psrk", "platform", "o60", "v25", "v28", "l21", "l45",
               "ja14", "jl14", "ml14", "ja30", "jl30", "ml30", "ja60", "jl60", "ml60"]
@@ -21,7 +22,12 @@ LIKE_AGES = {60: [1, 3, 7, 14, 30, 60], 30: [1, 3, 7, 14, 30], 14: [1, 3, 7, 14]
 RATES = {60: ["r7", "r14", "r30", "r60"], 30: ["r7", "r14", "r30"], 14: ["r7", "r14"]}
 
 
-def load(path="data/v2_raw.psv", extra="data/v2_extra.psv"):
+STALE_DAYS, STALE_GROWTH = 7, 0.05      # plan amendment 4 (chosen on train)
+STALE_COLS = ["psrk", "fz14", "pg14", "fz30", "pg30", "fz60", "pg60", "fza", "pga", "n30_optin"]
+
+
+def load(path="data/v2_raw.psv", extra="data/v2_extra.psv", optin_fix=False, stale="data/optin_staleness.psv"):
+    """optin_fix=True applies plan amendment 4: Instagram opt-in labels use the last read where opt-in still updated."""
     d = pd.read_csv(path, sep="|", header=None, names=RAW_COLS, dtype=str, keep_default_na=False)
     d["platform"] = d.platform.map({"I": "Instagram", "T": "Tiktok"})
     for c in RAW_COLS:
@@ -40,6 +46,34 @@ def load(path="data/v2_raw.psv", extra="data/v2_extra.psv"):
         d = d.merge(e, on=["psrk", "platform"], how="left", validate="one_to_one")
         assert len(d) == n
         d["lab60"] = label60(d)
+    if optin_fix:
+        d = fix_optin_labels(d, stale)
+    return d
+
+
+def ig_labels(d, H, o):
+    """Instagram label at horizon H from an opt-in ratio series o (same rules as sql/11 and label60)."""
+    ev = d.spend_day.notna()
+    p = (ev & d.spend_day.between(-3, H - 2)) | (o < 0.80)
+    n = ~ev & d.paid_date.isna() & (d[f"o{H}"] >= 0.90)
+    return pd.Series(np.where(p, "P", np.where(n, "N", "")), index=d.index)
+
+
+def fix_optin_labels(d, path="data/optin_staleness.psv"):
+    """Plan amendment 4. If the opt-in count has not changed for >= 7 days at the end of the window while public grew
+    >= 5%, use the ratio at the freeze: o_valid = o_H x (1 + public growth since the freeze). A gap that appears only
+    after opt-in froze gives no label. TikTok labels do not use opt-in and do not change."""
+    st = pd.read_csv(path, sep="|", header=None, names=STALE_COLS, dtype={"psrk": str})
+    d = d.merge(st, on="psrk", how="left")
+    ig = d.platform == "Instagram"
+    for H in (14, 30, 60):
+        if f"lab{H}" not in d:
+            continue
+        stale = (d[f"fz{H}"] >= STALE_DAYS) & (d[f"pg{H}"] >= STALE_GROWTH)
+        d[f"stale{H}"] = stale & ig
+        d[f"ov{H}"] = np.where(stale, d[f"o{H}"] * (1 + d[f"pg{H}"]), d[f"o{H}"])
+        new = ig_labels(d, H, d[f"ov{H}"])
+        d.loc[ig & stale, f"lab{H}"] = new[ig & stale]          # other rows keep the sql/11 label exactly
     return d
 
 

@@ -2,6 +2,8 @@
 
 Method (chosen and tested in reconcile/analyze.py and reconcile/analyze_tiktok.py):
   1. Instagram opt-in post: organic = opt-in (private) views. They are organic only. Measured, not estimated.
+     If the opt-in count stopped changing >= 7 days ago while public grew >= 5% (stale opt-in, plan amendment 4),
+     organic = opt-in at the freeze x organic growth from the freeze age to today (same curve as method 2).
   2. Boosted post with a public read before the first spend day:
        organic = pre-boost public read x organic growth from that age to today (median curve of unboosted posts),
        capped at today's public views.
@@ -53,10 +55,19 @@ def estimate(df, curves=None):
     method[no_paid] = "public views (no paid evidence)"
     conf[no_paid] = "n/a"
 
+    stale = d["optin_stale"].fillna(False).astype(bool) if "optin_stale" in d else pd.Series(False, index=d.index)
     optin = d.boosted.astype(bool) & (d.platform == "Instagram") & (d.views_private_latest > 0)
-    est[optin] = d.views_private_latest[optin]
-    method[optin] = "opt-in private views (organic only)"
-    conf[optin] = "measured"
+    live = optin & ~stale
+    est[live] = d.views_private_latest[live]
+    method[live] = "opt-in private views (organic only)"
+    conf[live] = "measured"
+    frozen = optin & stale & (d.get("optin_views_frozen", pd.Series(np.nan, index=d.index)) > 0)
+    if frozen.any():
+        g = growth(curves["Instagram"], d.optin_freeze_age[frozen], d.age_latest[frozen])
+        est[frozen] = np.minimum(d.optin_views_frozen[frozen] * g, d.views_public_latest[frozen].fillna(np.inf))
+        method[frozen] = "opt-in until it stopped updating, then organic curve"
+        conf[frozen] = confidence(d.optin_freeze_age[frozen].values)
+    optin = live | frozen
 
     rest = d.boosted.astype(bool) & ~optin
     has_pre = rest & (d.views_before_first_spend > 0) & d.preboost_age_days.notna()

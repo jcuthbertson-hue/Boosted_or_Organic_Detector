@@ -10,3 +10,5 @@ __pycache__/
 *.pyc
 outputs/
 results/model_v2_test_predictions.csv
+results/model_v2_test_predictions_fixed.csv
+results/*_selection.partial.jsonl

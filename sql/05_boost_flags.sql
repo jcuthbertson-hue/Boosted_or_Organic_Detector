@@ -8,7 +8,10 @@
 --   CONFIRMED_AD_LINK      an ad with spend > 0 runs this post (TikTok: TIKTOK_ITEM_ID = video id;
 --                          Meta: taxonomy key or 11-character shortcode in the ad name). Check vs the post-ID tag:
 --                          Meta 21 of 21 tagged posts found; TikTok 6 of 9 (0 of the 3 tracked campaign posts).
---   MEASURED_OPTIN_GAP     Instagram: opt-in organic views < 80% of public views on the same day
+--   MEASURED_OPTIN_GAP     Instagram: opt-in organic views < 80% of public views on the same day. If the opt-in count
+--                          stopped changing >= 7 days ago while public grew >= 5% (stale opt-in), the ratio from the
+--                          last read where opt-in still changed is used (plan amendment 4); a gap that appears only
+--                          after opt-in froze is not evidence.
 --   MEASURED_SOCAPI_GAP    Instagram: SocAPI total - IG plays - FB cross-post plays > 25% of IG plays
 --   LOGGED_PAID_DATE_ONLY  only the manual PAID_ACTIVITY_DATE says paid (may be a dark post)
 --   NO_PAID_EVIDENCE       none of the above (the model scores it)
@@ -63,12 +66,22 @@ boost_start AS (   -- earliest sign of paid: first spend day or the manual paid 
   SELECT platform, psrk, MIN(d) boost_start FROM (
     SELECT platform, psrk, first_spend d FROM first_spend UNION ALL SELECT platform, psrk, paid_date FROM mart WHERE paid_date IS NOT NULL)
   GROUP BY 1, 2),
-optin AS (   -- latest day with both public and opt-in views
-  SELECT POST_SCRAPER_REFERENCE_KEY psrk, POST_PLATFORM platform,
-         MAX_BY(VIEWS_PRIVATE / NULLIF(VIEWS_PUBLIC, 0), OBSERVATION_DATE) optin_ratio
+optin_ts AS (   -- reads with both public and opt-in views
+  SELECT POST_SCRAPER_REFERENCE_KEY psrk, POST_PLATFORM platform, OBSERVATION_DATE od,
+         DATEDIFF('day', PUBLISHED_DATETIME::DATE, OBSERVATION_DATE) age, VIEWS_PUBLIC v, VIEWS_PRIVATE vr
   FROM DM_BUSINESS_INTELLIGENCE.BI_REPORTING_APP.BIRA_FACT_ORGANIC__CAMPAIGN_POST_OBSERVATION_TIMESERIES
-  WHERE VIEWS_PRIVATE IS NOT NULL AND VIEWS_PUBLIC IS NOT NULL AND POST_PLATFORM = 'Instagram'
-  GROUP BY 1, 2),
+  WHERE VIEWS_PRIVATE IS NOT NULL AND VIEWS_PUBLIC > 0 AND POST_PLATFORM = 'Instagram' AND NOT IS_OBSERVATION_ESTIMATED_ONLY),
+optin_last AS (SELECT psrk, platform, MAX_BY(vr, od) vr_last, MAX_BY(v, od) v_last, MAX(age) a_last FROM optin_ts GROUP BY 1, 2),
+optin AS (   -- latest opt-in ratio, and the ratio when the opt-in count last changed (plan amendment 4: stale opt-in)
+  SELECT l.psrk, l.platform, l.vr_last / NULLIF(l.v_last, 0) optin_ratio_latest,
+         MIN(t.age) optin_freeze_age, l.a_last - MIN(t.age) optin_frozen_days,
+         l.v_last / NULLIF(MIN_BY(t.v, t.age), 0) - 1 public_growth_since_freeze,
+         l.vr_last / NULLIF(MIN_BY(t.v, t.age), 0) optin_ratio_live,
+         (l.a_last - MIN(t.age) >= 7 AND l.v_last / NULLIF(MIN_BY(t.v, t.age), 0) - 1 >= 0.05) optin_stale,
+         IFF(l.a_last - MIN(t.age) >= 7 AND l.v_last / NULLIF(MIN_BY(t.v, t.age), 0) - 1 >= 0.05,
+             l.vr_last / NULLIF(MIN_BY(t.v, t.age), 0), l.vr_last / NULLIF(l.v_last, 0)) optin_ratio
+  FROM optin_last l JOIN optin_ts t ON t.psrk = l.psrk AND t.platform = l.platform AND t.vr = l.vr_last
+  GROUP BY l.psrk, l.platform, l.vr_last, l.v_last, l.a_last),
 pre AS (     -- last real public read before the boost start
   SELECT t.POST_SCRAPER_REFERENCE_KEY psrk, t.POST_PLATFORM platform,
          MAX_BY(t.VIEWS_PUBLIC, t.OBSERVATION_DATE) views_before_first_spend, MAX(t.OBSERVATION_DATE) preboost_read_date
@@ -90,7 +103,8 @@ SELECT m.psrk, m.platform, m.post_type, m.post_url, m.pub, m.obs_latest, DATEDIF
   fs.first_spend, m.paid_date, bs.boost_start, ROUND(COALESCE(p.spend, tg.spend), 2) spend,
   p.impr_ig paid_impressions_ig, p.impr_fb paid_impressions_fb, p.plays_ig paid_plays_ig, p.plays_fb paid_plays_fb,
   tg.impr paid_impressions_tagged, tg.starts paid_plays_tagged,
-  o.optin_ratio, s.api_total, s.api_ig, s.api_fb,
+  o.optin_ratio, o.optin_ratio_latest, o.optin_stale, o.optin_freeze_age, o.optin_frozen_days, o.public_growth_since_freeze,
+  s.api_total, s.api_ig, s.api_fb,
   m.views_public_latest, m.views_private_latest,
   pr.views_before_first_spend, DATEDIFF('day', m.pub, pr.preboost_read_date) preboost_age_days
 FROM mart m

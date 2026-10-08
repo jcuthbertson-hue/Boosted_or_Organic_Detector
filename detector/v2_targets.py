@@ -12,10 +12,11 @@ from detector.features_v2 import build, load
 DATA_DATE = pd.Timestamp("2026-10-07")
 
 
-def main():
-    r = json.load(open("results/model_v2_report.json"))
+def main(report="results/model_v2_report.json", predictions="results/model_v2_test_predictions.csv",
+         out_path="results/model_v2_targets.json"):
+    r = json.load(open(report))
     m = r["models"]
-    preds = pd.read_csv("results/model_v2_test_predictions.csv", dtype={"psrk": str})
+    preds = pd.read_csv(predictions, dtype={"psrk": str})
     preds = preds[preds.split != "train_oof"]
     out = {"targets": {}}
     T = out["targets"]
@@ -84,11 +85,16 @@ def main():
                "pass": bool(len(g)) and bool(g.flagged.all())}
 
     out["all_pass"] = bool(all(v["pass"] if "pass" in v else all(x["pass"] for x in v.values()) for v in T.values()))
-    json.dump(out, open("results/model_v2_targets.json", "w"), indent=1, default=float)
+    out["labels"] = r.get("labels", "as pulled (sql/11)")
+    json.dump(out, open(out_path, "w"), indent=1, default=float)
     for k, v in T.items():
         print(k, json.dumps(v, default=float)[:600])
     print("ALL PASS:", out["all_pass"])
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    if "--fixed" in sys.argv:          # plan amendment 4: corrected Instagram labels, same v2 models
+        main("results/model_v2_report_fixed.json", "results/model_v2_test_predictions_fixed.csv", "results/model_v2_targets_fixed.json")
+    else:
+        main()
