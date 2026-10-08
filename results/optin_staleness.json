@@ -1,0 +1,75 @@
+{
+ "rule": "opt-in unchanged >= 7 days at the last read while public views grew >= 5%",
+ "instagram_posts_2025_with_optin": 6030,
+ "stale_at_latest_read": 2177,
+ "all_dates_posts_with_optin": 6303,
+ "all_dates_stale_at_latest_read": 2247,
+ "evidence_tier_changes": {
+  "from": "MEASURED_OPTIN_GAP",
+  "posts": 707,
+  "to": {
+   "NO_PAID_EVIDENCE": 461,
+   "LOGGED_PAID_DATE_ONLY": 211,
+   "MEASURED_SOCAPI_GAP": 35
+  }
+ },
+ "label_changes_instagram": {
+  "day_14": {
+   "paid_before": 670,
+   "paid_after": 574,
+   "paid_to_no_label": 96
+  },
+  "day_30": {
+   "paid_before": 1112,
+   "paid_after": 905,
+   "paid_to_no_label": 207
+  },
+  "day_60": {
+   "paid_before": 1492,
+   "paid_after": 1075,
+   "paid_to_no_label": 417
+  }
+ },
+ "socapi_check_day30": {
+  "train": {
+   "dropped": {
+    "posts": 131,
+    "with_socapi": 76,
+    "socapi_paid": 11,
+    "v2_model_flags_share": 0.37404580152671757
+   },
+   "kept_paid": {
+    "posts": 728,
+    "with_socapi": 457,
+    "socapi_paid": 274,
+    "v2_model_flags_share": 0.8612637362637363
+   },
+   "organic": {
+    "posts": 1731,
+    "with_socapi": 1034,
+    "socapi_paid": 21,
+    "v2_model_flags_share": 0.04274985557481225
+   }
+  },
+  "locked_test": {
+   "dropped": {
+    "posts": 68,
+    "with_socapi": 68,
+    "socapi_paid": 11,
+    "v2_model_flags_share": 0.3382352941176471
+   },
+   "kept_paid": {
+    "posts": 127,
+    "with_socapi": 126,
+    "socapi_paid": 60,
+    "v2_model_flags_share": 0.8582677165354331
+   },
+   "organic": {
+    "posts": 506,
+    "with_socapi": 501,
+    "socapi_paid": 11,
+    "v2_model_flags_share": 0.021739130434782608
+   }
+  }
+ }
+}

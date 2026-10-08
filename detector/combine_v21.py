@@ -17,9 +17,11 @@ def main():
     rep["models"].update({k: v for k, v in ig["models"].items() if k.startswith("Instagram")})
     rep["model_versions"] = {"Tiktok": "v2", "Instagram": "v2.1"}
     json.dump(rep, open("results/model_v2_1_combined_report.json", "w"), indent=1, default=float)
-    a = pd.read_csv("results/model_v2_test_predictions_fixed.csv", dtype={"psrk": str})
+    a = pd.read_csv("results/model_v2_test_predictions_fixed.csv", dtype={"psrk": str})       # test + fresh, corrected labels
+    o = pd.read_csv("results/model_v2_test_predictions.csv", dtype={"psrk": str})             # train out-of-fold (TikTok labels unchanged)
     b = pd.read_csv("results/model_v2_1_test_predictions.csv", dtype={"psrk": str})
-    pd.concat([a[a.platform == "Tiktok"], b[b.platform == "Instagram"]]).to_csv("results/model_v2_1_combined_predictions.csv", index=False)
+    tik = pd.concat([o[(o.platform == "Tiktok") & (o.split == "train_oof")], a[a.platform == "Tiktok"]])
+    pd.concat([tik, b[b.platform == "Instagram"]]).to_csv("results/model_v2_1_combined_predictions.csv", index=False)
     print({k: (v.get("model"), v.get("threshold")) for k, v in rep["models"].items()})
 
 

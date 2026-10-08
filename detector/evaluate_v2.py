@@ -25,13 +25,28 @@ PLATFORMS = ["Tiktok", "Instagram"]
 KEYS = ["roc_auc", "pr_auc", "brier", "accuracy", "balanced_accuracy", "precision", "recall", "specificity", "npv", "f1", "mcc", "kappa"]
 
 
-def main():
-    rep = json.load(open("results/model_v2_report.json"))
-    preds = pd.read_csv("results/model_v2_test_predictions.csv", dtype={"psrk": str})
-    sel = pd.read_csv("results/model_v2_selection.csv")
+RUNS = {  # name -> inputs; "v21" = production set: TikTok v2 + Instagram v2.1, labels corrected for stale opt-in
+    "v2": dict(report="results/model_v2_report.json", preds="results/model_v2_test_predictions.csv",
+               sel=["results/model_v2_selection.csv"], models={"Tiktok": "models/boost_detector_v2", "Instagram": "models/boost_detector_v2"},
+               optin_fix=False, out="results/classification_metrics_v2.json"),
+    "v21": dict(report="results/model_v2_1_combined_report.json", preds="results/model_v2_1_combined_predictions.csv",
+                sel=["results/model_v2_selection.csv", "results/model_v2_1_selection.csv"],
+                models={"Tiktok": "models/boost_detector_v2", "Instagram": "models/boost_detector_v2_1"},
+                optin_fix=True, out="results/classification_metrics_v2_1.json"),
+}
+
+
+def main(run="v2"):
+    R = RUNS[run]
+    rep = json.load(open(R["report"]))
+    preds = pd.read_csv(R["preds"], dtype={"psrk": str})
+    sel = pd.concat([pd.read_csv(x).assign(src=x) for x in R["sel"]])
+    if run == "v21":     # Instagram choices come from the v2.1 (corrected-label) development only
+        sel = sel[(sel.platform == "Tiktok") & sel.src.str.endswith("model_v2_selection.csv") |
+                  (sel.platform == "Instagram") & sel.src.str.endswith("model_v2_1_selection.csv")]
     v1 = json.load(open("results/classification_metrics.json"))
-    d = load()
-    out = {"test_cutoff": str(TRAIN_END.date()), "test_end": str(TEST_END.date()), "fresh": rep["fresh"], "n_boot": 1000,
+    d = load(optin_fix=R["optin_fix"])
+    out = {"run": run, "labels": rep.get("labels", "as pulled (sql/11)"), "test_cutoff": str(TRAIN_END.date()), "test_end": str(TEST_END.date()), "fresh": rep["fresh"], "n_boot": 1000,
            "bootstrap": "creator-cluster (resample creators, keep all their posts)", "platforms": {}, "day14": {}, "day60": {}, "v1_vs_v2": {}}
     for pf in PLATFORMS:
         for H in (30, 14, 60):
@@ -41,7 +56,7 @@ def main():
             thr = r["threshold"]
             g = preds[(preds.platform == pf) & (preds.H == H)]
             tr, te, fr = g[g.split == "train_oof"], g[g.split == "test"], g[g.split == "fresh"]
-            bundle = joblib.load(f"models/boost_detector_v2_{pf.lower()}_h{H}.joblib")
+            bundle = joblib.load(f"{R['models'][pf]}_{pf.lower()}_h{H}.joblib")
             X, meta = dataset(d, H, pf, r["feature_set"])
             trm = (meta.pub < TRAIN_END).values
             tem = ((meta.pub >= TRAIN_END) & (meta.pub <= TEST_END)).values
@@ -133,7 +148,7 @@ def main():
                                     "scored_outside_window": int((x.scored & ~x.in_window).sum())}
                               for pf_, x in g.groupby("platform")} if len(g) else {}
     out["llm_comparison"] = v1["llm_comparison"]
-    json.dump(out, open("results/classification_metrics_v2.json", "w"), indent=1, default=float)
+    json.dump(out, open(R["out"], "w"), indent=1, default=float)
     for pf in PLATFORMS:
         t = out["platforms"][pf]["test_metrics"]
         print(pf, "day-30 test:", {k: round(t[k], 3) for k in ("precision", "recall", "f1", "roc_auc", "ece")},
@@ -146,4 +161,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    main("v21" if "--v21" in sys.argv else "v2")

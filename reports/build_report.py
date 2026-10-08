@@ -55,8 +55,13 @@ def load():
                 W=j("results/weighted_recall.json"), curves=curves,
                 llm=list(csv.DictReader(open("results/llm_vs_ml.csv"))),
                 paired=list(csv.DictReader(open("results/llm_vs_ml_paired_auc.csv"))),
-                C2=j("results/classification_metrics_v2.json") if os.path.exists("results/classification_metrics_v2.json") else None,
-                TG=j("results/model_v2_targets.json") if os.path.exists("results/model_v2_targets.json") else None,
+                C2=(j("results/classification_metrics_v2_1.json") if os.path.exists("results/classification_metrics_v2_1.json") else
+                    j("results/classification_metrics_v2.json") if os.path.exists("results/classification_metrics_v2.json") else None),
+                TG=(j("results/model_v2_1_targets.json") if os.path.exists("results/model_v2_1_targets.json") else
+                    j("results/model_v2_targets.json") if os.path.exists("results/model_v2_targets.json") else None),
+                TG0=j("results/model_v2_targets.json") if os.path.exists("results/model_v2_targets.json") else None,
+                RL=j("results/model_v2_relabel.json") if os.path.exists("results/model_v2_relabel.json") else None,
+                ST=j("results/optin_staleness.json") if os.path.exists("results/optin_staleness.json") else None,
                 AU=j("results/ig_miss_audit.json") if os.path.exists("results/ig_miss_audit.json") else None)
 
 
@@ -368,11 +373,14 @@ def findings(D):
     ]
     if D["C2"] and D["TG"]:
         P2, T2 = D["C2"]["platforms"], D["TG"]["targets"]
-        items[-1] = ("The model meets every target on TikTok. On Instagram, a flag is reliable but an organic call is not proof.",
+        items[-1] = (("The model meets every target on TikTok. Instagram reaches the 90% line once frozen opt-in labels are fixed."
+                      if D["C2"].get("run") == "v21" else
+                      "The model meets every target on TikTok. On Instagram, a flag is reliable but an organic call is not proof."),
                      f"Locked test, day-30 model v2. TikTok: F1 {f2(P2['Tiktok']['test_metrics']['f1'])}, large boosts caught "
                      f"{pct(T2['C1']['Tiktok']['material_recall'])} at {pct(T2['C1']['Tiktok']['precision'])} precision. "
-                     f"Instagram: {pct(T2['C1']['Instagram']['precision'])} of flags are paid, but it catches {pct(T2['C1']['Instagram']['material_recall'])} "
-                     "of large boosts (target 90%).")
+                     f"Instagram: {pct(T2['C1']['Instagram']['precision'])} of flags are paid, and it catches {pct(T2['C1']['Instagram']['material_recall'], 1)} "
+                     "of large boosts (target 90%)." + (" Day-30 model v2.1, labels corrected for frozen opt-in; third look at the locked test."
+                                                        if D["C2"].get("run") == "v21" else ""))
     lis = "".join(f'<li><span class="n">{i + 1}</span><span>{esc(t)}{info(tip)}</span></li>' for i, (t, tip) in enumerate(items))
     nxt = [("Tag every boosted ad with the post ID.", "The tag gives an exact match on every platform."),
            ("Wait 7–14 days after publish before a boost.",
@@ -414,7 +422,7 @@ def targets(D):
         + "".join(f'<div class="tgt-v"><span class="tgt-pf">{lab}</span><span>{v}</span></div>' for (p, lab), v in zip(PLATFORMS, r[1:]))
         + "</div>" for r in rows) + "</div>"
     why = ""
-    if D.get("AU"):
+    if D.get("AU") and C2.get("run") != "v21":
         a = D["AU"]["splits"]["locked test"]; b = D["AU"]["splits"]["train (out-of-fold)"]
         mi, ca, og = a["large boost, missed"], a["large boost, caught"], a["organic"]
         why = (f'<div class="caveat"><span class="pill warn">Why Instagram misses</span><span>The {mi["posts"]} missed large boosts look organic: '
@@ -425,10 +433,12 @@ def targets(D):
                    f'Train: {b["large boost, missed"]["socapi_paid_over_25pct"]} of {b["large boost, missed"]["with_socapi"]} missed boosts. '
                    "So some misses are real boosts that public data cannot see, and some opt-in labels are doubtful. Source: results/ig_miss_audit.json.")
                + '</span></div>')
-    score = card("Did v2 reach its targets?",
+    prod = C2.get("run") == "v21"
+    score = card("Did the model reach its targets?",
                  lst + why + f'<p class="mini">Coverage: {pct(c4["coverage"]["all"], 1)} of posts tracked by day 7 get a score {ok(c4["coverage"]["all"] >= 0.85)}. '
                        f'Tagged paid posts flagged: {c6["posts_flagged_at_every_horizon"]} of {c6["distinct_posts"]} {ok(c6["pass"])}.</p>',
-                 cls="span2", sub="Locked test (posts published 2026-07-01 to 09-09) and fresh posts, each scored once",
+                 cls="span2", sub=("TikTok v2, Instagram v2.1, labels corrected for frozen opt-in. Locked test (posts 2026-07-01 to 09-09) and fresh posts"
+                                   if prod else "Locked test (posts published 2026-07-01 to 09-09) and fresh posts, each scored once"),
                  tip="Large boost = opt-in shows 40% or more paid, or an ad link or post-ID tag inside the model window (all TikTok boosts). Targets and rules: docs/IMPROVEMENT_PLAN.md.",
                  data=table(["Target", "Platform", "Value", "95% interval"],
                             [[k, lab, f3(T[k][p].get("material_recall", T[k][p].get("f1", T[k][p].get("ece", float("nan"))))),
@@ -436,12 +446,39 @@ def targets(D):
                               ("–".join(f3(x) for x in T[k][p]["ci95"]) if isinstance(T[k][p].get("ci95"), list) else "")]
                              for k in ("C1", "C2", "C3", "C5") for p, lab in PLATFORMS if p in T[k]]))
     vv = C2["v1_vs_v2"]
-    bars = progress([(f"{lab} {v}", vv[p]["f1"][v], "solid" if v == "v2" else "hatch-n", f"{lab}, model {v}: F1 {vv[p]['f1'][v]:.3f} on the locked test")
-                     for p, lab in PLATFORMS for v in ("v1", "v2")], fmt=f2)
-    comp = card("v1 → v2", bars, sub="F1 on the locked test",
-                tip="v2 uses more public reads (views and likes at many ages, the creator's own norms) and adds post-ID tags to the labels, so the label sets differ a little.",
-                data=table(["Platform", "Metric", "v1", "v2"],
-                           [[lab, k.replace("_", " "), f3(vv[p][k]["v1"]), f3(vv[p][k]["v2"])] for p, lab in PLATFORMS for k in ("roc_auc", "pr_auc", "precision", "recall", "f1", "ece")]))
+    if prod and D.get("TG0") and D.get("RL") and D.get("ST"):
+        a0 = D["TG0"]["targets"]["C1"]["Instagram"]
+        a1 = D["RL"]["models"]["Instagram_h30_test"]
+        a2 = T["C1"]["Instagram"]
+        st = D["ST"]
+        stress = a1.get("stress_socapi_paid_added_back", {})
+        bars = progress([("v2, labels as pulled", a0["material_recall"], "hatch-n",
+                          f'Instagram day 30, labels as pulled: {pct(a0["material_recall"], 1)} caught at {pct(a0["precision"], 1)} precision (first look, target missed)'),
+                         ("v2, corrected labels", a1["material_recall"], "hatch-n",
+                          f'Same model, labels corrected: {pct(a1["material_recall"], 1)} caught at {pct(a1["precision"], 1)} precision'),
+                         ("v2.1, corrected labels (used)", a2["material_recall"], "solid",
+                          f'Retrained on corrected labels: {pct(a2["material_recall"], 1)} caught at {pct(a2["precision"], 1)} precision; '
+                          f'95% interval {pct(a2["ci95"]["material_recall"][0])}–{pct(a2["ci95"]["material_recall"][1])}')])
+        comp = card("Instagram: the labels were the gap", bars
+                    + f'<p class="mini">Opt-in stopped updating on {st["stale_at_latest_read"]:,} of {st["instagram_posts_2025_with_optin"]:,} Instagram posts with opt-in. '
+                      f'Public views kept growing, so the post looked paid.</p>',
+                    sub="Large boosts caught, day-30 model, locked test",
+                    tip=(f'Posts whose paid label came only after opt-in froze get no label (day 30: {st["label_changes_instagram"]["day_30"]["paid_to_no_label"]} posts). '
+                         f'SocAPI shows paid plays on {st["socapi_check_day30"]["locked_test"]["dropped"]["socapi_paid"]} of '
+                         f'{st["socapi_check_day30"]["locked_test"]["dropped"]["with_socapi"]} of them on the test set, vs '
+                         f'{st["socapi_check_day30"]["locked_test"]["kept_paid"]["socapi_paid"]} of {st["socapi_check_day30"]["locked_test"]["kept_paid"]["with_socapi"]} kept paid posts. '
+                         + (f'If those SocAPI-paid posts count as paid, v2 catches {pct(stress["material_recall"], 1)}. ' if stress else "")
+                         + "Rule chosen on train before any held-out use (plan amendment 4). This is the third look at the locked test."),
+                    data=table(["Platform", "Metric", "v1 (labels as pulled)", "v2.1 / v2 (corrected labels)"],
+                               [[lab, k.replace("_", " "), f3(vv[p][k]["v1"]), f3(vv[p][k]["v2"])] for p, lab in PLATFORMS
+                                for k in ("roc_auc", "pr_auc", "precision", "recall", "f1", "ece")]))
+    else:
+        bars = progress([(f"{lab} {v}", vv[p]["f1"][v], "solid" if v == "v2" else "hatch-n", f"{lab}, model {v}: F1 {vv[p]['f1'][v]:.3f} on the locked test")
+                         for p, lab in PLATFORMS for v in ("v1", "v2")], fmt=f2)
+        comp = card("v1 → v2", bars, sub="F1 on the locked test",
+                    tip="v2 uses more public reads (views and likes at many ages, the creator's own norms) and adds post-ID tags to the labels, so the label sets differ a little.",
+                    data=table(["Platform", "Metric", "v1", "v2"],
+                               [[lab, k.replace("_", " "), f3(vv[p][k]["v1"]), f3(vv[p][k]["v2"])] for p, lab in PLATFORMS for k in ("roc_auc", "pr_auc", "precision", "recall", "f1", "ece")]))
     hz = []
     for blk, name in (("day14", "Day 14"), ("platforms", "Day 30"), ("day60", "Day 60")):
         for p, lab in PLATFORMS:
