@@ -32,3 +32,13 @@ caught 41% of the time (the 30-day window closes before the lift shows).
   (second look; stated in the report). The fresh holdout is used once.
 - Thresholds are set on train out-of-fold scores.
 - Every test result is reported, including targets that are missed.
+
+## Amendment 1 (2026-10-08, after the data pull, before any v2 model was trained)
+
+The v2 data pull (`sql/11`) shows that about 11,000 of the 41,484 campaign posts have no public read in their first
+60 days (tracking starts late or never). No model on public data can score them. C4 is therefore measured on posts
+that are tracked early: **>= 85% of posts at least 14 days old that have a public read by day 7 get a score.**
+Untracked posts are reported separately as a data gap, not a model result.
+
+Threshold rule (fixed now): on train out-of-fold scores, take the threshold with the highest F1 among thresholds whose
+out-of-fold precision is at least 0.90; if none reaches 0.90, take the max-F1 threshold.
