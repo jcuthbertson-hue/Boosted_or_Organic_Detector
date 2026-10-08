@@ -22,7 +22,7 @@ def flags():
         dict(psrk="e", platform="Tiktok", boost_evidence="NO_PAID_EVIDENCE"),
         dict(psrk="f", platform="Tiktok", boost_evidence="NO_PAID_EVIDENCE"),
         dict(psrk="g", platform="Instagram", boost_evidence="NO_PAID_EVIDENCE"),
-        dict(psrk="h", platform="Instagram", boost_evidence="NO_PAID_EVIDENCE", views_private_latest=95000.0),
+        dict(psrk="h", platform="Instagram", boost_evidence="NO_PAID_EVIDENCE", views_private_latest=95000.0, optin_ratio=0.95),
         # stale opt-in: frozen at 20,000 since day 10, public kept growing; a boost is confirmed by an ad link
         dict(psrk="i", platform="Instagram", boost_evidence="CONFIRMED_AD_LINK", views_private_latest=20000.0,
              optin_stale=True, optin_freeze_age=10, optin_views_frozen=20000.0),

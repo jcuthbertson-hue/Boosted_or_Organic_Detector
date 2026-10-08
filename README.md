@@ -29,7 +29,7 @@ organic views? We tested every paid metric against Instagram opt-in views, which
    test of later posts, day-30 model). TikTok: F1 0.93, 92% of large boosts caught at 95% precision. Instagram (v2.1):
    F1 0.89, 89.6% of large boosts caught at 94% precision (target 90%; 95% interval 83-95%). The first Instagram result
    (83%) was held down by bad labels: the opt-in count stopped updating on 2,177 of 6,030 Instagram posts while public
-   views kept growing, so organic posts looked paid. The same fix corrects the daily table: 707 posts lose a false
+   views kept growing, so organic posts looked paid. The same fix corrects the daily table: 706 posts lose a false
    "measured paid" tag.
 
 **Caveat that can change the decision:** TikTok organic after a boost is UNVERIFIED. TikTok opt-in includes Spark Ad

@@ -74,8 +74,16 @@ separate organic from paid views where evidence exists). The caveats below must 
   501 organic posts. So the rule mostly removes wrong labels; about 1 in 6 dropped posts is a real boost (stress test:
   counting them as paid gives 89.7% for the v2 model).
 - **Measured organic and evidence:** `sql/05` now uses the opt-in ratio from the last read where opt-in still changed.
-  707 Instagram posts lose `MEASURED_OPTIN_GAP` (461 to no evidence, 211 to manual paid date, 35 to SocAPI gap). Stale
-  opt-in is not `ORGANIC_MEASURED`; its organic estimate is opt-in at the freeze x organic curve.
+  706 Instagram posts lose `MEASURED_OPTIN_GAP` (460 to no evidence, 211 to manual paid date, 35 to SocAPI gap). Stale
+  opt-in is not `ORGANIC_MEASURED`; its organic estimate is opt-in at the freeze x organic curve. The freeze starts after
+  the last read with a different opt-in value (23 of 6,303 posts had their final value earlier too; fixed 2026-10-08,
+  6 stale flags and 2 gap decisions changed; the training labels came from the sql/13 pull before this fix, so at most
+  23 posts could carry the old freeze). Checked in Snowflake: 0 duplicate (post, date) reads, 0 zero-public reads
+  with opt-in, 0 reads before publish.
+- **Independent tests (2026-10-08):** five separate test agents checked leakage, every number in the docs, pipeline edge
+  cases, SQL vs Python consistency, and privacy. Bugs found and fixed: opt-in estimate above public views, crashes on
+  unknown ages, silent handling of unknown evidence tiers and bad input files, the freeze start above, opt-in fallback
+  without the stale check, and the Snowflake path still scoring with v1.
 - **Join check:** the Parquet has 41,484 rows and 41,484 unique (post, platform) keys, the same keys as the v1 file.
 
 ### Required caveats for stakeholders

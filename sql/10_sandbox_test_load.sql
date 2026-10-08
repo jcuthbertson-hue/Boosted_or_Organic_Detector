@@ -42,7 +42,7 @@ COPY INTO PAID_CLASSIFICATION__POST_TEST
   FILE_FORMAT = (FORMAT_NAME = 'PARQUET_FMT') MATCH_BY_COLUMN_NAME = CASE_INSENSITIVE;
 
 -- A1. Rows and paid split. Expected:
---   Instagram  250 rows | paid 41 | organic 151 | unknown 58
+--   Instagram  250 rows | paid 41 | organic 145 | unknown 64
 --   Tiktok     250 rows | paid 31 | organic 152 | unknown 67
 SELECT POST_PLATFORM, COUNT(*) rows_, COUNT_IF(IS_PAID) paid, COUNT_IF(NOT IS_PAID) organic, COUNT_IF(IS_PAID IS NULL) unknown
 FROM PAID_CLASSIFICATION__POST_TEST GROUP BY 1 ORDER BY 1;
@@ -68,7 +68,7 @@ COPY INTO PAID_CLASSIFICATION__POST
   FILE_FORMAT = (FORMAT_NAME = 'PARQUET_FMT') MATCH_BY_COLUMN_NAME = CASE_INSENSITIVE;
 
 -- B1. Expected:
---   Instagram  23,552 rows | paid 3,108 | organic 14,692 | unknown 5,752
+--   Instagram  23,552 rows | paid 3,109 | organic 13,966 | unknown 6,477
 --   Tiktok     17,932 rows | paid 1,865 | organic 11,547 | unknown 4,520
 SELECT POST_PLATFORM, COUNT(*) rows_, COUNT_IF(IS_PAID) paid, COUNT_IF(NOT IS_PAID) organic, COUNT_IF(IS_PAID IS NULL) unknown
 FROM PAID_CLASSIFICATION__POST GROUP BY 1 ORDER BY 1;

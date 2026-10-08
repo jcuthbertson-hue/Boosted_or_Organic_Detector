@@ -109,8 +109,9 @@ def classify(flags, scores, run_date):
     status[no_ev & (d.model_score < d.model_threshold)] = "ORGANIC_PREDICTED"
     # measured organic: opt-in shows (almost) all public views are organic, so no boost added views. Beats the model.
     # sql/05 optin_ratio = ratio at the last read where opt-in still updated; older flag files only carry the latest totals
-    fallback = d.views_private_latest / d.views_public_latest.where(d.views_public_latest > 0)
-    optin = pd.to_numeric(d["optin_ratio"], errors="coerce").fillna(fallback) if "optin_ratio" in d else fallback
+    # sql/05 always has optin_ratio (NULL = no qualifying opt-in read); only flag files older than it fall back to totals
+    optin = (pd.to_numeric(d["optin_ratio"], errors="coerce") if "optin_ratio" in d else
+             d.views_private_latest / d.views_public_latest.where(d.views_public_latest > 0))
     stale = d["optin_stale"].fillna(False).astype(bool) if "optin_stale" in d else pd.Series(False, index=d.index)
     # stale opt-in only proves organic up to the freeze, so it is not measured organic today (plan amendment 4)
     measured_org = no_ev & (d.platform == "Instagram") & (optin >= OPTIN_ORGANIC) & ~stale
@@ -250,8 +251,10 @@ def main():
     ap.add_argument("--flags", default="data/flags.csv", help="sql/05 output (offline mode)")
     ap.add_argument("--optin-live", default=None, help="offline: opt-in fields of the amended sql/05 (psrk|ratio|latest|stale|freeze age|views)")
     ap.add_argument("--tier-changes", default=None, help="offline: posts whose evidence tier the amended sql/05 changes (psrk|tier)")
-    ap.add_argument("--features", default="data/detector_dataset_v2.psv", help="sql/02 output, pipe-separated (offline mode)")
-    ap.add_argument("--features-v2", default=None, help="sql/11 output (model v2); replaces --features when given")
+    ap.add_argument("--features", default="data/detector_dataset_v2.psv", help="offline, --model v1 only: sql/02 output")
+    ap.add_argument("--model", choices=["v2", "v1"], default="v2", help="v2: day 60/30/14 models (TikTok v2, Instagram v2.1)")
+    ap.add_argument("--features-v2", default="data/v2_raw.psv", help="offline: sql/11 output (model v2)")
+    ap.add_argument("--features-v2-extra", default="data/v2_extra.psv", help="offline: sql/12 output (model v2)")
     ap.add_argument("--snowflake", action="store_true")
     ap.add_argument("--target-schema", default=None, help="DB.SCHEMA to MERGE into; omit to write CSV only")
     ap.add_argument("--run-date", default=str(dt.date.today()))
@@ -261,20 +264,30 @@ def main():
     if a.snowflake:
         conn = connect()
         flags = query(conn, "sql/05_boost_flags.sql")
-        raw = query(conn, "sql/02_detector_features_and_labels.sql")
-        with tempfile.NamedTemporaryFile("w", suffix=".psv", delete=False) as tmp:
-            raw[COLS].to_csv(tmp.name, sep="|", header=False, index=False)
-        features = build(load(tmp.name))
         for c in ["pub", "obs_latest", "first_spend", "paid_date", "boost_start"]:
             flags[c] = pd.to_datetime(flags[c], errors="coerce")
+        if a.model == "v1":
+            raw1 = query(conn, "sql/02_detector_features_and_labels.sql")
+            with tempfile.NamedTemporaryFile("w", suffix=".psv", delete=False) as tmp:
+                raw1[COLS].to_csv(tmp.name, sep="|", header=False, index=False)
+            features = build(load(tmp.name))
+        else:   # sql/11 and sql/12 return one pipe-separated string per post (column s), read by detector.features_v2.load
+            paths = {}
+            for name, sql in (("raw", "sql/11_v2_features_and_labels.sql"), ("extra", "sql/12_v2_jump_features.sql")):
+                q = query(conn, sql).sort_values("rn")
+                with tempfile.NamedTemporaryFile("w", suffix=".psv", delete=False) as tmp:
+                    tmp.write("\n".join(q.s.astype(str)) + "\n")
+                paths[name] = tmp.name
+            a.features_v2, a.features_v2_extra = paths["raw"], paths["extra"]
     else:
         conn = None
         flags = read_flags(a.flags, a.optin_live, a.tier_changes)
-        features = build(load(a.features))
+        if a.model == "v1":
+            features = build(load(a.features))
 
-    if a.features_v2:
+    if a.model == "v2":
         from detector.features_v2 import load as load_v2
-        raw = load_v2(a.features_v2)
+        raw = load_v2(a.features_v2, extra=a.features_v2_extra)
         d = add_model_note_v2(classify(flags, score_v2(raw), pd.Timestamp(a.run_date).date()), raw)
     else:
         d = add_model_note(classify(flags, score(features), pd.Timestamp(a.run_date).date()), features)

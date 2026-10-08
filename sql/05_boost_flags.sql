@@ -70,18 +70,24 @@ optin_ts AS (   -- reads with both public and opt-in views
   SELECT POST_SCRAPER_REFERENCE_KEY psrk, POST_PLATFORM platform, OBSERVATION_DATE od,
          DATEDIFF('day', PUBLISHED_DATETIME::DATE, OBSERVATION_DATE) age, VIEWS_PUBLIC v, VIEWS_PRIVATE vr
   FROM DM_BUSINESS_INTELLIGENCE.BI_REPORTING_APP.BIRA_FACT_ORGANIC__CAMPAIGN_POST_OBSERVATION_TIMESERIES
-  WHERE VIEWS_PRIVATE IS NOT NULL AND VIEWS_PUBLIC > 0 AND POST_PLATFORM = 'Instagram' AND NOT IS_OBSERVATION_ESTIMATED_ONLY),
-optin_last AS (SELECT psrk, platform, MAX_BY(vr, od) vr_last, MAX_BY(v, od) v_last, MAX(age) a_last FROM optin_ts GROUP BY 1, 2),
+  WHERE VIEWS_PRIVATE IS NOT NULL AND VIEWS_PUBLIC > 0 AND POST_PLATFORM = 'Instagram' AND NOT IS_OBSERVATION_ESTIMATED_ONLY
+    AND OBSERVATION_DATE >= PUBLISHED_DATETIME::DATE),
+optin_last AS (   -- latest read; one row per (post, date) in the fact table (checked 2026-10-08: 0 duplicates)
+  SELECT psrk, platform, MAX_BY(vr, od) vr_last, MAX_BY(v, od) v_last, MAX(age) a_last FROM optin_ts GROUP BY 1, 2),
+optin_run AS (   -- start of the final unchanged run: first read after the last read with a different opt-in value
+  SELECT l.psrk, l.platform, l.vr_last, l.v_last, l.a_last,
+         COALESCE(MAX(IFF(t.vr <> l.vr_last, t.age, NULL)), -1) a_changed
+  FROM optin_last l JOIN optin_ts t ON t.psrk = l.psrk AND t.platform = l.platform
+  GROUP BY 1, 2, 3, 4, 5),
 optin AS (   -- latest opt-in ratio, and the ratio when the opt-in count last changed (plan amendment 4: stale opt-in)
-  SELECT l.psrk, l.platform, l.vr_last / NULLIF(l.v_last, 0) optin_ratio_latest,
-         MIN(t.age) optin_freeze_age, l.a_last - MIN(t.age) optin_frozen_days,
-         l.v_last / NULLIF(MIN_BY(t.v, t.age), 0) - 1 public_growth_since_freeze,
-         l.vr_last / NULLIF(MIN_BY(t.v, t.age), 0) optin_ratio_live,
-         (l.a_last - MIN(t.age) >= 7 AND l.v_last / NULLIF(MIN_BY(t.v, t.age), 0) - 1 >= 0.05) optin_stale,
-         IFF(l.a_last - MIN(t.age) >= 7 AND l.v_last / NULLIF(MIN_BY(t.v, t.age), 0) - 1 >= 0.05,
-             l.vr_last / NULLIF(MIN_BY(t.v, t.age), 0), l.vr_last / NULLIF(l.v_last, 0)) optin_ratio
-  FROM optin_last l JOIN optin_ts t ON t.psrk = l.psrk AND t.platform = l.platform AND t.vr = l.vr_last
-  GROUP BY l.psrk, l.platform, l.vr_last, l.v_last, l.a_last),
+  SELECT r.psrk, r.platform, r.vr_last / NULLIF(r.v_last, 0) optin_ratio_latest, r.vr_last optin_views_frozen,
+         MIN(t.age) optin_freeze_age, r.a_last - MIN(t.age) optin_frozen_days,
+         r.v_last / NULLIF(MIN_BY(t.v, t.age), 0) - 1 public_growth_since_freeze,
+         (r.a_last - MIN(t.age) >= 7 AND r.v_last / NULLIF(MIN_BY(t.v, t.age), 0) - 1 >= 0.05) optin_stale,
+         IFF(r.a_last - MIN(t.age) >= 7 AND r.v_last / NULLIF(MIN_BY(t.v, t.age), 0) - 1 >= 0.05,
+             r.vr_last / NULLIF(MIN_BY(t.v, t.age), 0), r.vr_last / NULLIF(r.v_last, 0)) optin_ratio
+  FROM optin_run r JOIN optin_ts t ON t.psrk = r.psrk AND t.platform = r.platform AND t.age > r.a_changed
+  GROUP BY r.psrk, r.platform, r.vr_last, r.v_last, r.a_last),
 pre AS (     -- last real public read before the boost start
   SELECT t.POST_SCRAPER_REFERENCE_KEY psrk, t.POST_PLATFORM platform,
          MAX_BY(t.VIEWS_PUBLIC, t.OBSERVATION_DATE) views_before_first_spend, MAX(t.OBSERVATION_DATE) preboost_read_date
@@ -104,6 +110,7 @@ SELECT m.psrk, m.platform, m.post_type, m.post_url, m.pub, m.obs_latest, DATEDIF
   p.impr_ig paid_impressions_ig, p.impr_fb paid_impressions_fb, p.plays_ig paid_plays_ig, p.plays_fb paid_plays_fb,
   tg.impr paid_impressions_tagged, tg.starts paid_plays_tagged,
   o.optin_ratio, o.optin_ratio_latest, o.optin_stale, o.optin_freeze_age, o.optin_frozen_days, o.public_growth_since_freeze,
+  o.optin_views_frozen,
   s.api_total, s.api_ig, s.api_fb,
   m.views_public_latest, m.views_private_latest,
   pr.views_before_first_spend, DATEDIFF('day', m.pub, pr.preboost_read_date) preboost_age_days

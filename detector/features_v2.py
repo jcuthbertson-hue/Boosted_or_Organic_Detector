@@ -63,8 +63,8 @@ def fix_optin_labels(d, path="data/optin_staleness.psv"):
     """Plan amendment 4. If the opt-in count has not changed for >= 7 days at the end of the window while public grew
     >= 5%, use the ratio at the freeze: o_valid = o_H x (1 + public growth since the freeze). A gap that appears only
     after opt-in froze gives no label. TikTok labels do not use opt-in and do not change."""
-    st = pd.read_csv(path, sep="|", header=None, names=STALE_COLS, dtype={"psrk": str})
-    d = d.merge(st, on="psrk", how="left")
+    st = pd.read_csv(path, sep="|", header=None, names=STALE_COLS, dtype={"psrk": str}).assign(platform="Instagram")
+    d = d.merge(st, on=["psrk", "platform"], how="left", validate="one_to_one")
     ig = d.platform == "Instagram"
     for H in (14, 30, 60):
         if f"lab{H}" not in d:

@@ -3,12 +3,12 @@
  "instagram_posts_2025_with_optin": 6030,
  "stale_at_latest_read": 2177,
  "all_dates_posts_with_optin": 6303,
- "all_dates_stale_at_latest_read": 2247,
+ "all_dates_stale_at_latest_read": 2241,
  "evidence_tier_changes": {
   "from": "MEASURED_OPTIN_GAP",
-  "posts": 707,
+  "posts": 706,
   "to": {
-   "NO_PAID_EVIDENCE": 461,
+   "NO_PAID_EVIDENCE": 460,
    "LOGGED_PAID_DATE_ONLY": 211,
    "MEASURED_SOCAPI_GAP": 35
   }
