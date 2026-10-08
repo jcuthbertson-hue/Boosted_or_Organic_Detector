@@ -112,8 +112,7 @@ def write_parquet(table, path):
         t[c] = pd.to_numeric(t[c], errors="coerce").round().astype("Int64")
     if "POST_URL" in t and t["POST_URL"].isna().all():
         t = t.drop(columns="POST_URL")
-    t.columns = [c.lower() for c in t.columns]
-    t.to_parquet(path, index=False)
+    t.to_parquet(path, index=False)   # UPPERCASE names = the Snowflake table columns (sql/09), so COPY INTO matches by name
     return t
 
 

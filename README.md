@@ -77,16 +77,18 @@ schema we may write to.
 ## All-post export (Parquet)
 
 `python3 -m pipeline.run_daily --flags data/flags.csv --features data/features_all.psv --parquet outputs/paid_classification_<date>.parquet`
-writes one row per Instagram / TikTok campaign post (git-ignored; row-level). Join back to Snowflake on
-`POST_SCRAPER_REFERENCE_KEY` + `POST_PLATFORM` (BIRA mart). Key columns:
+writes one row per Instagram / TikTok campaign post (git-ignored; row-level). Column names are the UPPERCASE
+table columns. Join back to Snowflake on `POST_SCRAPER_REFERENCE_KEY` + `POST_PLATFORM` (BIRA mart).
+To put it in Snowflake, run `sql/10_sandbox_test_load.sql` in a worksheet: it loads a 500-row test file into
+`DM_BUSINESS_INTELLIGENCE.SANDBOX_JCUTHBERTSON` first, with expected check results, then the full file. Key columns:
 
 | Column | Meaning |
 |---|---|
-| `is_paid` | True / False; empty when the post has no paid record and the model could not score it |
-| `paid_basis` | `evidence` (tag, ad link, opt-in or SocAPI gap, manual date) or `model` |
-| `paid_status`, `boost_evidence` | status and the strongest proof tier |
-| `model_score`, `model_threshold`, `model_note` | 0-1 score (posts with >= 28 days and >= 5 public reads in days 0-30), cut-off from train, reason when there is no score |
-| `organic_views_est`, `organic_views_method`, `organic_views_confidence` | organic views (opt-in measured, or pre-boost read x organic curve) |
+| `IS_PAID` | True / False; empty when the post has no paid record and the model could not score it |
+| `PAID_BASIS` | `evidence` (tag, ad link, opt-in or SocAPI gap, manual date) or `model` |
+| `PAID_STATUS`, `BOOST_EVIDENCE` | status and the strongest proof tier |
+| `MODEL_SCORE`, `MODEL_THRESHOLD`, `MODEL_NOTE` | 0-1 score (posts with >= 28 days and >= 5 public reads in days 0-30), cut-off from train, reason when there is no score |
+| `ORGANIC_VIEWS_EST`, `ORGANIC_VIEWS_METHOD`, `ORGANIC_VIEWS_CONFIDENCE` | organic views (opt-in measured, or pre-boost read x organic curve) |
 
 ## How to run
 
@@ -114,6 +116,7 @@ python3 -m pipeline.run_daily --flags data/flags.csv   # offline daily run (flag
 | `sql/07_organic_curve.sql` | Organic growth curve from unboosted posts |
 | `sql/08_tagged_paid_posts.sql` | The paid team's tagged posts and whether our link rules find them |
 | `sql/09_paid_classification_table.sql` | Table DDL + MERGE for the daily table (not executed) |
+| `sql/10_sandbox_test_load.sql` | Load the Parquet export into a BI sandbox schema: test file first, with checks |
 | `reconcile/` | Subtraction test, TikTok check, organic curve, production organic estimate |
 | `detector/` | Features, train / test protocol, full evaluation, scoring |
 | `pipeline/`, `tests/` | Daily run scaffold and its offline tests |
