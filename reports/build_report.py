@@ -407,7 +407,7 @@ def targets(D):
     c4 = T["C4"]
     c6 = T["C6"]
     rows = [
-        ["Large boosts caught at 90%+ precision"] + pfv("C1", lambda v: f'{pct(v["material_recall"])} caught, {pct(v["precision"])} precise {ok(v["pass"])}'),
+        ["90%+ of large boosts caught, at 90%+ precision"] + pfv("C1", lambda v: f'{pct(v["material_recall"])} caught, {pct(v["precision"])} precise {ok(v["pass"])}'),
         ["F1 (Instagram 0.80, TikTok 0.93)"] + pfv("C2", lambda v: f'{f2(v["f1"])} {ok(v["pass"])}'),
         ["Calibration error 0.05 or less"] + pfv("C3", lambda v: f'{f3(v["ece"])} {ok(v["pass"])}'),
         ["Fresh posts (Sep 10–24), day-14 model"] + pfv("C5", lambda v: (f'{pct(v["material_recall"])} caught, {pct(v["precision"])} precise '
@@ -435,7 +435,7 @@ def targets(D):
                + '</span></div>')
     prod = C2.get("run") == "v21"
     score = card("Did the model reach its targets?",
-                 lst + why + f'<p class="mini">Coverage: {pct(c4["coverage"]["all"], 1)} of posts tracked by day 7 get a score {ok(c4["coverage"]["all"] >= 0.85)}. '
+                 lst + why + f'<p class="mini">Coverage: {pct(c4["coverage"]["all"], 1)} of posts at least 14 days old and tracked by day 7 get a score {ok(c4["coverage"]["all"] >= 0.85)}. '
                        f'Tagged paid posts flagged: {c6["posts_flagged_at_every_horizon"]} of {c6["distinct_posts"]} {ok(c6["pass"])}.</p>',
                  cls="span2", sub=("TikTok v2, Instagram v2.1, labels corrected for frozen opt-in. Locked test (posts 2026-07-01 to 09-09) and fresh posts"
                                    if prod else "Locked test (posts published 2026-07-01 to 09-09) and fresh posts, each scored once"),
@@ -487,7 +487,7 @@ def targets(D):
                 hz.append([f"{name}, {lab}", f'{t["n"]:,} ({t["n_pos"]})', f2(t["precision"]), f2(t["recall"]), f2(t["f1"])])
     horiz = card("Score early, check later", table(["Model", "Posts (paid)", "Precision", "Recall", "F1"], hz), cls="span3",
                  sub="A post gets the longest model its data allows",
-                 tip="Day 14: from 14 days of public data. Day 30: from 28 days. Day 60: from 55 days; it sees boosts that start late. Day 60 was added after the targets were set, so it has no target.")
+                 tip="Day 14: needs a public read on day 12–14 and a first read by day 10. Day 30: a read on day 28 or later. Day 60: a read on day 55 or later; it sees boosts that start late. Day 60 was added after the targets were set, so it has no target.")
     return f'<section id="targets" class="grid">{score}{comp}{horiz}</section>'
 
 

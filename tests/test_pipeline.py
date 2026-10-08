@@ -74,7 +74,36 @@ def test_estimate_never_above_public_and_never_below_preboost():
     assert list(e.organic_views_confidence) == ["low", "medium", "high"] * 2
 
 
+def raises(exc, fn, *a, **k):
+    try:
+        fn(*a, **k)
+    except exc:
+        return True
+    return False
+
+
+def test_edge_inputs():
+    """Edge cases found by an independent test pass (2026-10-08)."""
+    base = flags().iloc[:1].copy()
+    # opt-in total above public (latest totals from different reads): estimate capped at public
+    a = base.assign(views_private_latest=120000.0, views_public_latest=100000.0)
+    d = classify(a, pd.DataFrame(columns=["psrk", "platform", "model_score", "model_threshold"]), dt.date(2026, 10, 7))
+    assert d.organic_views_est.iloc[0] == 100000
+    # unknown ages give no estimate instead of a crash
+    b = flags().iloc[[1]].assign(age_latest=np.nan)
+    d = classify(b, pd.DataFrame(columns=["psrk", "platform", "model_score", "model_threshold"]), dt.date(2026, 10, 7))
+    assert np.isnan(d.organic_views_est.iloc[0])
+    c = flags().iloc[[1]].assign(optin_stale=True, optin_views_frozen=20000.0, views_private_latest=20000.0, optin_freeze_age=np.nan)
+    classify(c, pd.DataFrame(columns=["psrk", "platform", "model_score", "model_threshold"]), dt.date(2026, 10, 7))
+    e = flags().iloc[[1]].assign(optin_stale=True, optin_views_frozen=20000.0, views_private_latest=20000.0)   # no freeze-age column
+    classify(e, pd.DataFrame(columns=["psrk", "platform", "model_score", "model_threshold"]), dt.date(2026, 10, 7))
+    # a misspelled or empty evidence tier is an error, not "evidence"
+    for bad in ("CONFIRMED_AD_LNK", None):
+        assert raises(ValueError, classify, base.assign(boost_evidence=bad), pd.DataFrame(columns=["psrk", "platform"]), dt.date(2026, 10, 7))
+
+
 if __name__ == "__main__":
+    test_edge_inputs()
     test_classify()
     test_estimate_never_above_public_and_never_below_preboost()
     print("pipeline tests passed")

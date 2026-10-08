@@ -32,9 +32,12 @@ def load_curves():
 
 
 def growth(curve, age_from, age_to):
-    a0 = np.clip(np.asarray(age_from, float), 0, MAX_AGE).astype(int)
-    a1 = np.clip(np.asarray(age_to, float), 0, MAX_AGE).astype(int)
-    return np.maximum(curve[a1] / curve[a0], 1.0)
+    """Organic growth factor between two ages (>= 1). NaN where either age is unknown."""
+    f, t = np.asarray(age_from, float), np.asarray(age_to, float)
+    bad = np.isnan(f) | np.isnan(t)
+    a0 = np.clip(np.where(bad, 0, f), 0, MAX_AGE).astype(int)
+    a1 = np.clip(np.where(bad, 0, t), 0, MAX_AGE).astype(int)
+    return np.where(bad, np.nan, np.maximum(curve[a1] / curve[a0], 1.0))
 
 
 def confidence(age_pre):
@@ -58,10 +61,13 @@ def estimate(df, curves=None):
     stale = d["optin_stale"].fillna(False).astype(bool) if "optin_stale" in d else pd.Series(False, index=d.index)
     optin = d.boosted.astype(bool) & (d.platform == "Instagram") & (d.views_private_latest > 0)
     live = optin & ~stale
-    est[live] = d.views_private_latest[live]
+    # capped at public views: the two latest totals can come from different reads
+    est[live] = np.minimum(d.views_private_latest[live], d.views_public_latest[live].fillna(np.inf))
     method[live] = "opt-in private views (organic only)"
     conf[live] = "measured"
-    frozen = optin & stale & (d.get("optin_views_frozen", pd.Series(np.nan, index=d.index)) > 0)
+    nan = pd.Series(np.nan, index=d.index)
+    frozen = (optin & stale & (d.get("optin_views_frozen", nan) > 0) & d.get("optin_freeze_age", nan).notna()
+              & d.age_latest.notna())
     if frozen.any():
         g = growth(curves["Instagram"], d.optin_freeze_age[frozen], d.age_latest[frozen])
         est[frozen] = np.minimum(d.optin_views_frozen[frozen] * g, d.views_public_latest[frozen].fillna(np.inf))
@@ -70,7 +76,7 @@ def estimate(df, curves=None):
     optin = live | frozen
 
     rest = d.boosted.astype(bool) & ~optin
-    has_pre = rest & (d.views_before_first_spend > 0) & d.preboost_age_days.notna()
+    has_pre = rest & (d.views_before_first_spend > 0) & d.preboost_age_days.notna() & d.age_latest.notna()
     for platform, curve in curves.items():
         m = has_pre & (d.platform == platform)
         if m.any():

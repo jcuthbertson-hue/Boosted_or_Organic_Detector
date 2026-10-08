@@ -31,7 +31,6 @@ STATUS = {"CONFIRMED_PAID_TAG": "PAID_CONFIRMED", "CONFIRMED_AD_LINK": "PAID_CON
           "LOGGED_PAID_DATE_ONLY": "PAID_LOGGED"}
 PAID = {"PAID_CONFIRMED", "PAID_MEASURED", "PAID_LOGGED", "PAID_PREDICTED"}
 MODEL_VERSION = "boost_detector_v1 (train < 2026-07-01)"
-MODEL_VERSION_V2 = "boost_detector_v2 (day-60 / day-30 / day-14 models, train < 2026-07-01)"
 # Instagram uses v2.1 (same method, trained on labels corrected for stale opt-in, plan amendment 4) when it exists
 V2_MODELS = {"Tiktok": ["models/boost_detector_v2"], "Instagram": ["models/boost_detector_v2_1", "models/boost_detector_v2"]}
 OPTIN_ORGANIC = 0.90     # Instagram: opt-in organic views >= 90% of public views = measured organic (same cut as the N label)
@@ -99,6 +98,10 @@ def add_model_note_v2(d, raw):
 
 
 def classify(flags, scores, run_date):
+    known = set(STATUS) | {"NO_PAID_EVIDENCE"}
+    bad = ~flags.boost_evidence.isin(known)
+    if bad.any():
+        raise ValueError(f"unknown boost_evidence values: {sorted(flags.boost_evidence[bad].astype(str).unique())[:5]}")
     d = flags.merge(scores, on=["psrk", "platform"], how="left")
     status = d.boost_evidence.map(STATUS)
     no_ev = d.boost_evidence == "NO_PAID_EVIDENCE"
@@ -186,16 +189,23 @@ def read_flags(path, optin_live=None, tier_changes=None):
     for c in ["pub", "obs_latest", "first_spend", "paid_date", "boost_start"]:
         if c in f:
             f[c] = pd.to_datetime(f[c], errors="coerce")
-    if optin_live and os.path.exists(optin_live):
+    for path in (optin_live, tier_changes):
+        if path and not os.path.exists(path):
+            raise FileNotFoundError(path)
+    if optin_live:
         o = pd.read_csv(optin_live, sep="|", header=None, dtype={"psrk": str},
                         names=["psrk", "optin_ratio", "optin_ratio_latest", "optin_stale", "optin_freeze_age", "optin_views_frozen"])
         o["optin_stale"] = o.optin_stale.astype(int).astype(bool)
         o["platform"] = "Instagram"
         f = f.merge(o, on=["psrk", "platform"], how="left", validate="one_to_one")
-    if tier_changes and os.path.exists(tier_changes):
+    if tier_changes:
         c = pd.read_csv(tier_changes, sep="|", header=None, names=["psrk", "tier_new"], dtype=str).assign(platform="Instagram")
-        f = f.merge(c, on=["psrk", "platform"], how="left")
-        assert (f.boost_evidence[f.tier_new.notna()] == "MEASURED_OPTIN_GAP").all()
+        if c.psrk.duplicated().any():
+            raise ValueError(f"duplicate posts in {tier_changes}")
+        f = f.merge(c, on=["psrk", "platform"], how="left", validate="many_to_one")
+        wrong = f.tier_new.notna() & (f.boost_evidence != "MEASURED_OPTIN_GAP")
+        if wrong.any():     # the stale opt-in fix only moves posts out of MEASURED_OPTIN_GAP
+            raise ValueError(f"{int(wrong.sum())} listed posts are not MEASURED_OPTIN_GAP in {tier_changes}")
         f["boost_evidence"] = f.tier_new.fillna(f.boost_evidence)
         f = f.drop(columns="tier_new")
     return f
