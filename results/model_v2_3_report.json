@@ -304,7 +304,7 @@
    }
   },
   "Tiktok_h14": {
-   "model": "hgb(lr=0.06,leaves=31,min_leaf=40)",
+   "model": "hgb(lr=0.06,leaves=15,min_leaf=40)",
    "feature_set": "base+creator",
    "calibrated": false,
    "threshold": 0.23,
@@ -360,10 +360,10 @@
    }
   },
   "Instagram_h14": {
-   "model": "hgb(lr=0.06,leaves=31,min_leaf=20)",
-   "feature_set": "base+creator",
+   "model": "random_forest(min_leaf=3)",
+   "feature_set": "base+creator+jump+cnorm",
    "calibrated": false,
-   "threshold": 0.6,
+   "threshold": 0.49,
    "features": [
     "log_followers",
     "log_views",
@@ -393,26 +393,33 @@
     "comments_per_like",
     "er",
     "creator_rel_reach",
-    "creator_prior_posts"
+    "creator_prior_posts",
+    "jump_age",
+    "jump_lpv_ratio",
+    "min_new_lpv_ratio",
+    "jump_lpv",
+    "creator_rel_lpv",
+    "creator_rel_share_v3",
+    "creator_rel_vtf"
    ],
    "train": {
     "n": 2087,
     "n_pos": 427,
     "cv_oof": {
-     "precision": 0.9026315789473685,
-     "recall": 0.8032786885245902,
-     "f1": 0.8500619578686494,
-     "tp": 343,
-     "fp": 37,
-     "fn": 84,
-     "tn": 1623,
-     "material_recall": 0.8346456692913385,
+     "precision": 0.9078947368421053,
+     "recall": 0.8079625292740047,
+     "f1": 0.8550185873605949,
+     "tp": 345,
+     "fp": 35,
+     "fn": 82,
+     "tn": 1625,
+     "material_recall": 0.8372703412073491,
      "n_material": 381
     },
-    "cv_roc_auc": 0.9522431646962558,
-    "cv_pr_auc": 0.9141007679301341,
-    "cv_ece": 0.03790601231229437,
-    "in_sample_roc_auc": 1.0
+    "cv_roc_auc": 0.9524039953725911,
+    "cv_pr_auc": 0.9141405698854647,
+    "cv_ece": 0.01961560006253624,
+    "in_sample_roc_auc": 0.9980262972263763
    }
   }
  },
