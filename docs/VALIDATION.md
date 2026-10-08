@@ -24,7 +24,7 @@ separate organic from paid views where evidence exists). The caveats below must 
 
 ### Leakage and bias checks
 - Paid date, boosted / pre-boost flags, ad names, spend, ad dates, opt-in and SocAPI values are never features (asserted in code).
-- Fixed 30-day feature window for every post (no window-length leak).
+- Fixed feature window per model (days 0-14, 0-30 or 0-60) for every post; follower counts follow the same window (v2.2).
 - Time-based locked test set (no look-ahead); creator-grouped CV for selection; threshold from train only.
 - Selection bias: positives required the first spend within 28 days of publish, matching the feature window.
 
@@ -53,21 +53,25 @@ separate organic from paid views where evidence exists). The caveats below must 
 
 ### Model v2 checks (2026-10-08)
 - **Pre-registration:** targets C1-C6 written before any v2 experiment (`docs/IMPROVEMENT_PLAN.md`). Amendments 1-3 were
-  logged before the first held-out evaluation; amendment 4 (frozen opt-in label rule) after it, with the rule chosen on
-  train only. All model, feature-set, calibration and threshold choices use train cross-validation grouped by creator
+  logged before the first held-out evaluation; amendment 4 (frozen opt-in label rule) and amendment 5 (leak repair)
+  after it. The amendment 4 rule was set on train posts, but after the first test results had been seen. All model, feature-set, calibration and threshold choices use train cross-validation grouped by creator
   (v2: 192 runs, `results/model_v2_selection.csv`; Instagram v2.1: 72 runs, `results/model_v2_1_selection.csv`).
-- **Held-out use:** locked test (posts 2026-07-01 to 09-09): v1 once, v2 once, then the label fix (third look). Fresh
-  posts (2026-09-10 to 09-24): twice. Every result is reported, including the first, uncorrected one. Next clean test:
+- **Held-out use:** locked test (posts 2026-07-01 to 09-09): v1 once, v2 once, the label fix (third look), the leak
+  repair (fourth look). Fresh posts (2026-09-10 to 09-24): three times. Every result is reported, including the first, uncorrected one. Next clean test:
   posts published after 2026-09-24.
-- **Production scorecard** (TikTok v2, Instagram v2.1, corrected labels; `results/model_v2_1_targets.json`): TikTok
-  meets C1-C6. Instagram meets C2, C3, C5, C6; misses C1 by 0.4 points (89.6% vs 90%; 95% interval 83-95%) and C4
-  (day-14 F1 0.80 vs day-30 0.89).
-- **Overfitting:** train in-sample AUC is 1.00 for the boosted-tree models (they memorise train). Use the train-CV vs
-  test gap instead: TikTok day 30 0.989 -> 0.977; Instagram v2.1 day 30 0.959 -> 0.968 (corrected labels).
-- **Calibration:** test calibration error 0.023 (TikTok), 0.026 (Instagram v2.1; no isotonic step needed, train
-  out-of-fold error was under 0.05).
+- **Production scorecard** (v2.2 on both platforms, corrected labels; `results/model_v2_2_targets.json`): C1, C3, C5,
+  C6 met on both. C2: Instagram met (0.892); TikTok 0.927 vs 0.93 (missed by 0.003; interval 0.89-0.96). C4: TikTok met;
+  Instagram missed (day-14 F1 0.80 vs day-30 0.89).
+- **Leak repair (amendment 5):** an independent audit found `followers` was the median over days 0-60 for every model
+  day, so day-14 and day-30 models saw follower counts from after their window. v2.2 uses the median up to the model day
+  (`sql/14`) and day-30 eligibility up to day 30. Effect on the locked test (day 30): TikTok F1 0.931 -> 0.927;
+  Instagram large boosts caught 89.6% -> 90.4%. Day-60 models are unchanged (their window was already 0-60).
+- **Overfitting:** train in-sample AUC is about 1.00 for the tree models (they memorise train). Use the train-CV vs test
+  gap instead (v2.2, day 30): TikTok 0.989 -> 0.979; Instagram 0.957 -> 0.966.
+- **Calibration:** test calibration error 0.024 (TikTok), 0.028 (Instagram); no isotonic step needed (train
+  out-of-fold error under 0.05 for every v2.2 model).
 - **Fresh posts are a small sample:** 10 TikTok and 16 Instagram paid posts, so C5 can only say the target is not ruled
-  out (precision intervals 42-92% and 56-94%).
+  out (precision intervals 35-92% and 56-94%).
 - **Label audit (Instagram, frozen opt-in):** the opt-in count stopped updating on 2,177 of 6,030 Instagram posts with
   opt-in (`results/optin_staleness.json`). Labels whose gap appears only after the freeze were dropped (day 30: 207).
   Independent check with SocAPI: 11 of 68 dropped test posts show paid plays, vs 60 of 126 kept paid posts and 11 of
@@ -81,9 +85,13 @@ separate organic from paid views where evidence exists). The caveats below must 
   23 posts could carry the old freeze). Checked in Snowflake: 0 duplicate (post, date) reads, 0 zero-public reads
   with opt-in, 0 reads before publish.
 - **Independent tests (2026-10-08):** five separate test agents checked leakage, every number in the docs, pipeline edge
-  cases, SQL vs Python consistency, and privacy. Bugs found and fixed: opt-in estimate above public views, crashes on
-  unknown ages, silent handling of unknown evidence tiers and bad input files, the freeze start above, opt-in fallback
-  without the stale check, and the Snowflake path still scoring with v1.
+  cases, SQL vs Python consistency, and privacy. Bugs found and fixed: the follower-count leak, opt-in estimate above
+  public views, crashes on unknown ages, silent handling of unknown evidence tiers and bad input files, the freeze start
+  above, opt-in fallback without the stale check, and the Snowflake path still scoring with v1. Passed: no paid field in
+  any model input, creator features use only earlier posts, thresholds and calibration fit on train only, no creator in
+  both a training and a validation fold, no post IDs or names in tracked files.
+- **Not evaluated by design:** posts whose paid evidence starts after the model window get no label (TikTok day 14:
+  11% of posts with evidence). The daily table gives those posts their status from the evidence, never from the model.
 - **Join check:** the Parquet has 41,484 rows and 41,484 unique (post, platform) keys, the same keys as the v1 file.
 
 ### Required caveats for stakeholders
@@ -93,6 +101,6 @@ separate organic from paid views where evidence exists). The caveats below must 
 - TikTok organic after a boost is UNVERIFIED: opt-in includes Spark Ad views, so there is no organic truth. The curve
   method is back-tested only on unboosted TikTok posts.
 - Boosts that start before the first public read (12% of boosted Instagram posts, 24% of TikTok) cannot be separated.
-- Instagram model (v2.1, corrected labels): it misses about 10% of large boosts at day 30 and more at day 14 (F1 0.79);
+- Instagram model (v2.2, corrected labels): it misses about 10% of large boosts at day 30 and more at day 14 (F1 0.79);
   a model "paid" is 94% right. Treat a day-14 Instagram "organic" as provisional until the day-30 score exists.
 - YouTube cannot be reconciled: no ad-to-video link exists in the warehouse.

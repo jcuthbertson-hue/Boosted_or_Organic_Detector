@@ -55,11 +55,14 @@ def load():
                 W=j("results/weighted_recall.json"), curves=curves,
                 llm=list(csv.DictReader(open("results/llm_vs_ml.csv"))),
                 paired=list(csv.DictReader(open("results/llm_vs_ml_paired_auc.csv"))),
-                C2=(j("results/classification_metrics_v2_1.json") if os.path.exists("results/classification_metrics_v2_1.json") else
+                C2=(j("results/classification_metrics_v2_2.json") if os.path.exists("results/classification_metrics_v2_2.json") else
+                    j("results/classification_metrics_v2_1.json") if os.path.exists("results/classification_metrics_v2_1.json") else
                     j("results/classification_metrics_v2.json") if os.path.exists("results/classification_metrics_v2.json") else None),
-                TG=(j("results/model_v2_1_targets.json") if os.path.exists("results/model_v2_1_targets.json") else
+                TG=(j("results/model_v2_2_targets.json") if os.path.exists("results/model_v2_2_targets.json") else
+                    j("results/model_v2_1_targets.json") if os.path.exists("results/model_v2_1_targets.json") else
                     j("results/model_v2_targets.json") if os.path.exists("results/model_v2_targets.json") else None),
                 TG0=j("results/model_v2_targets.json") if os.path.exists("results/model_v2_targets.json") else None,
+                TG1=j("results/model_v2_1_targets.json") if os.path.exists("results/model_v2_1_targets.json") else None,
                 RL=j("results/model_v2_relabel.json") if os.path.exists("results/model_v2_relabel.json") else None,
                 ST=j("results/optin_staleness.json") if os.path.exists("results/optin_staleness.json") else None,
                 AU=j("results/ig_miss_audit.json") if os.path.exists("results/ig_miss_audit.json") else None)
@@ -373,13 +376,17 @@ def findings(D):
     ]
     if D["C2"] and D["TG"]:
         P2, T2 = D["C2"]["platforms"], D["TG"]["targets"]
-        items[-1] = (("The model meets every target on TikTok. Instagram reaches the 90% line once frozen opt-in labels are fixed."
+        items[-1] = (("Both platforms now sit on the target lines; Instagram day 14 is the weak spot."
+                      if D["C2"].get("run") == "v22" else
+                      "The model meets every target on TikTok. Instagram reaches the 90% line once frozen opt-in labels are fixed."
                       if D["C2"].get("run") == "v21" else
                       "The model meets every target on TikTok. On Instagram, a flag is reliable but an organic call is not proof."),
                      f"Locked test, day-30 model v2. TikTok: F1 {f2(P2['Tiktok']['test_metrics']['f1'])}, large boosts caught "
                      f"{pct(T2['C1']['Tiktok']['material_recall'])} at {pct(T2['C1']['Tiktok']['precision'])} precision. "
                      f"Instagram: {pct(T2['C1']['Instagram']['precision'])} of flags are paid, and it catches {pct(T2['C1']['Instagram']['material_recall'], 1)} "
-                     "of large boosts (target 90%)." + (" Day-30 model v2.1, labels corrected for frozen opt-in; third look at the locked test."
+                     "of large boosts (target 90%)." + (" Day-30 model v2.2, labels corrected for frozen opt-in; fourth look at the locked test."
+                                                        if D["C2"].get("run") == "v22" else
+                                                        " Day-30 model v2.1, labels corrected for frozen opt-in; third look at the locked test."
                                                         if D["C2"].get("run") == "v21" else ""))
     lis = "".join(f'<li><span class="n">{i + 1}</span><span>{esc(t)}{info(tip)}</span></li>' for i, (t, tip) in enumerate(items))
     nxt = [("Tag every boosted ad with the post ID.", "The tag gives an exact match on every platform."),
@@ -433,11 +440,12 @@ def targets(D):
                    f'Train: {b["large boost, missed"]["socapi_paid_over_25pct"]} of {b["large boost, missed"]["with_socapi"]} missed boosts. '
                    "So some misses are real boosts that public data cannot see, and some opt-in labels are doubtful. Source: results/ig_miss_audit.json.")
                + '</span></div>')
-    prod = C2.get("run") == "v21"
+    prod = C2.get("run") in ("v21", "v22")
     score = card("Did the model reach its targets?",
                  lst + why + f'<p class="mini">Coverage: {pct(c4["coverage"]["all"], 1)} of posts at least 14 days old and tracked by day 7 get a score {ok(c4["coverage"]["all"] >= 0.85)}. '
                        f'Tagged paid posts flagged: {c6["posts_flagged_at_every_horizon"]} of {c6["distinct_posts"]} {ok(c6["pass"])}.</p>',
-                 cls="span2", sub=("TikTok v2, Instagram v2.1, labels corrected for frozen opt-in. Locked test (posts 2026-07-01 to 09-09) and fresh posts"
+                 cls="span2", sub=(("Model v2.2" if C2.get("run") == "v22" else "TikTok v2, Instagram v2.1")
+                                   + ", labels corrected for frozen opt-in. Locked test (posts 2026-07-01 to 09-09) and fresh posts"
                                    if prod else "Locked test (posts published 2026-07-01 to 09-09) and fresh posts, each scored once"),
                  tip="Large boost = opt-in shows 40% or more paid, or an ad link or post-ID tag inside the model window (all TikTok boosts). Targets and rules: docs/IMPROVEMENT_PLAN.md.",
                  data=table(["Target", "Platform", "Value", "95% interval"],
@@ -456,8 +464,11 @@ def targets(D):
                           f'Instagram day 30, labels as pulled: {pct(a0["material_recall"], 1)} caught at {pct(a0["precision"], 1)} precision (first look, target missed)'),
                          ("v2, corrected labels", a1["material_recall"], "hatch-n",
                           f'Same model, labels corrected: {pct(a1["material_recall"], 1)} caught at {pct(a1["precision"], 1)} precision'),
-                         ("v2.1, corrected labels (used)", a2["material_recall"], "solid",
-                          f'Retrained on corrected labels: {pct(a2["material_recall"], 1)} caught at {pct(a2["precision"], 1)} precision; '
+                         *([("v2.1, corrected labels", D["TG1"]["targets"]["C1"]["Instagram"]["material_recall"], "hatch-n",
+                             f'Retrained on corrected labels: {pct(D["TG1"]["targets"]["C1"]["Instagram"]["material_recall"], 1)} caught at '
+                             f'{pct(D["TG1"]["targets"]["C1"]["Instagram"]["precision"], 1)} precision')] if C2.get("run") == "v22" and D.get("TG1") else []),
+                         (("v2.2, followers fixed (used)" if C2.get("run") == "v22" else "v2.1, corrected labels (used)"), a2["material_recall"], "solid",
+                          f'In use: {pct(a2["material_recall"], 1)} caught at {pct(a2["precision"], 1)} precision; '
                           f'95% interval {pct(a2["ci95"]["material_recall"][0])}–{pct(a2["ci95"]["material_recall"][1])}')])
         comp = card("Instagram: the labels were the gap", bars
                     + f'<p class="mini">Opt-in stopped updating on {st["stale_at_latest_read"]:,} of {st["instagram_posts_2025_with_optin"]:,} Instagram posts with opt-in. '
@@ -468,7 +479,8 @@ def targets(D):
                          f'{st["socapi_check_day30"]["locked_test"]["dropped"]["with_socapi"]} of them on the test set, vs '
                          f'{st["socapi_check_day30"]["locked_test"]["kept_paid"]["socapi_paid"]} of {st["socapi_check_day30"]["locked_test"]["kept_paid"]["with_socapi"]} kept paid posts. '
                          + (f'If those SocAPI-paid posts count as paid, v2 catches {pct(stress["material_recall"], 1)}. ' if stress else "")
-                         + "Rule chosen on train before any held-out use (plan amendment 4). This is the third look at the locked test."),
+                         + "Rule chosen on train (plan amendment 4). v2.2 also uses follower counts known at the horizon (amendment 5); "
+                         + "fourth look at the locked test."),
                     data=table(["Platform", "Metric", "v1 (labels as pulled)", "v2.1 / v2 (corrected labels)"],
                                [[lab, k.replace("_", " "), f3(vv[p][k]["v1"]), f3(vv[p][k]["v2"])] for p, lab in PLATFORMS
                                 for k in ("roc_auc", "pr_auc", "precision", "recall", "f1", "ece")]))
@@ -632,7 +644,7 @@ def model(D):
         note = (f'<p class="note">Instagram misses are mostly small boosts: flagged posts hold {pct(W["Instagram"]["paid_view_weighted_recall"], 1)} of paid views on opt-in posts.'
                 f'{info("Weighted by paid views measured with opt-in, 186 test posts.")}</p>')
     return (f'<section id="model" class="block"><div class="block-head"><div><h2>Paid-post model</h2>'
-            f'<p class="card-sub">{"Day-30 model v2. " if D["C2"] else ""}Only for posts with no paid record. Locked test of later posts.</p></div>{seg}</div>'
+            f'<p class="card-sub">{("Day-30 model v2.2. " if D["C2"].get("run") == "v22" else "Day-30 model v2. ") if D["C2"] else ""}Only for posts with no paid record. Locked test of later posts.</p></div>{seg}</div>'
             f'{pf_panels(tiles)}<div class="grid">{"".join(cards)}</div>{note}</section>')
 
 

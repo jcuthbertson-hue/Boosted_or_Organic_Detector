@@ -11,8 +11,8 @@
 -- Files (from pipeline/run_daily.py --parquet, column names = UPPERCASE table columns):
 --   paid_classification_2026-10-07_TEST_500.parquet   500 posts (250 Instagram, 250 TikTok), random sample
 --   paid_classification_2026-10-07.parquet            41,484 posts (all Instagram / TikTok campaign posts in BIRA)
---   Models: TikTok boost_detector_v2, Instagram boost_detector_v2.1 (day 60 / 30 / 14; results/model_v2_1_targets.json);
---   Instagram opt-in evidence corrected for stale opt-in (plan amendment 4)
+--   Models: boost_detector_v2.2 on both platforms (day 60 / 30 / 14; results/model_v2_2_targets.json);
+--   Instagram opt-in evidence corrected for stale opt-in (plan amendment 4); followers known at the horizon (amendment 5)
 
 USE ROLE USERS_BUSINESS_INTELLIGENCE;
 USE WAREHOUSE BI_WAREHOUSE;
@@ -42,7 +42,7 @@ COPY INTO PAID_CLASSIFICATION__POST_TEST
   FILE_FORMAT = (FORMAT_NAME = 'PARQUET_FMT') MATCH_BY_COLUMN_NAME = CASE_INSENSITIVE;
 
 -- A1. Rows and paid split. Expected:
---   Instagram  250 rows | paid 41 | organic 145 | unknown 64
+--   Instagram  250 rows | paid 42 | organic 144 | unknown 64
 --   Tiktok     250 rows | paid 31 | organic 152 | unknown 67
 SELECT POST_PLATFORM, COUNT(*) rows_, COUNT_IF(IS_PAID) paid, COUNT_IF(NOT IS_PAID) organic, COUNT_IF(IS_PAID IS NULL) unknown
 FROM PAID_CLASSIFICATION__POST_TEST GROUP BY 1 ORDER BY 1;
@@ -68,8 +68,8 @@ COPY INTO PAID_CLASSIFICATION__POST
   FILE_FORMAT = (FORMAT_NAME = 'PARQUET_FMT') MATCH_BY_COLUMN_NAME = CASE_INSENSITIVE;
 
 -- B1. Expected:
---   Instagram  23,552 rows | paid 3,109 | organic 13,966 | unknown 6,477
---   Tiktok     17,932 rows | paid 1,865 | organic 11,547 | unknown 4,520
+--   Instagram  23,552 rows | paid 3,112 | organic 13,962 | unknown 6,478
+--   Tiktok     17,932 rows | paid 1,877 | organic 11,529 | unknown 4,526
 SELECT POST_PLATFORM, COUNT(*) rows_, COUNT_IF(IS_PAID) paid, COUNT_IF(NOT IS_PAID) organic, COUNT_IF(IS_PAID IS NULL) unknown
 FROM PAID_CLASSIFICATION__POST GROUP BY 1 ORDER BY 1;
 
