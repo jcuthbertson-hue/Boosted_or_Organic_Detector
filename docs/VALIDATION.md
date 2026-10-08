@@ -90,6 +90,10 @@ separate organic from paid views where evidence exists). The caveats below must 
   above, opt-in fallback without the stale check, and the Snowflake path still scoring with v1. Passed: no paid field in
   any model input, creator features use only earlier posts, thresholds and calibration fit on train only, no creator in
   both a training and a validation fold, no post IDs or names in tracked files.
+- **Instagram day 14 (C4 miss), train-only analysis:** the day-14 model catches 83.7% of large boosts out of fold
+  (381 posts): 88% of opt-in gaps but 67% of ad-linked boosts, including boosts that start on days 0-6. Of its 62 misses,
+  25 are caught by the day-30 model on the same posts (the boost had only a few days to show). No feature tried closes
+  the gap; treat a day-14 Instagram "organic" as provisional until the day-30 score exists.
 - **Not evaluated by design:** posts whose paid evidence starts after the model window get no label (TikTok day 14:
   11% of posts with evidence). The daily table gives those posts their status from the evidence, never from the model.
 - **Join check:** the Parquet has 41,484 rows and 41,484 unique (post, platform) keys, the same keys as the v1 file.
