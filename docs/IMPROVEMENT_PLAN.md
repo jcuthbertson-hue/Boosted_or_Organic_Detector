@@ -78,3 +78,27 @@ Changes (all decided on train CV only):
    the longest horizon a post has wins (60, then 30, then 14).
 3. The pre-registered targets and material definition do not change. On the train-CV evidence above, Instagram C1 is
    expected to fail; it is reported as measured.
+
+## Amendment 4 (2026-10-08, after the v2 held-out evaluation; label rule chosen on train only)
+
+Finding (train posts only, `sql/13_optin_staleness.sql`): the Instagram opt-in count often stops updating while public
+views keep growing, so opt-in / public falls with no paid views. 34% of missed opt-in-only "boosts" in train had a flat
+opt-in series in days 0-30 (caught boosts 2.5%, organic 2.5%). Rule tested on train opt-in-only positives (day 30):
+opt-in frozen >= 7 days at the end of the window while public grew >= 5%: 168 posts, SocAPI shows paid on 29 of 100
+(not frozen: 187 of 340); the v2 model catches 46% of them (not frozen: 90%). Results were the same for 3-10 days and
+5-10% growth, so the rule is not tuned to one cut.
+
+Label correction (Instagram only; TikTok labels do not use opt-in):
+- Stale opt-in at horizon H = the opt-in value has not changed for >= 7 days at the last read up to day H, while public
+  views grew >= 5% over those days.
+- For stale posts, the opt-in ratio is taken at the last read where opt-in was still updating:
+  o_valid = opt-in at the freeze / public at the freeze = o_H x (1 + public growth since the freeze).
+- P = paid evidence inside the window, or o_valid < 0.80. A gap that appears only after opt-in froze gives no label.
+  Material uses o_valid <= 0.60. Organic (N) rules do not change.
+
+How it is used, in this order, and reported as such:
+1. Re-measure: the v2 models do not change; locked test and fresh labels are corrected. This is a third look at the
+   locked test and a second look at the fresh posts, with no model choice made on them.
+2. Retrain (v2.1): Instagram candidates re-run on corrected train labels with train-only CV; the same pick rules.
+   Its locked-test result is a third look and is labelled so. New posts (published after 2026-09-24) are the next clean test.
+3. Production: `MEASURED_OPTIN_GAP` and the opt-in organic estimate must use the last live opt-in read (sql/05 change).
