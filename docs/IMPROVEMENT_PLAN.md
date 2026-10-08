@@ -120,3 +120,16 @@ Repair, decided before any re-evaluation:
 - Not changed: posts whose paid evidence starts after the model window have no label and are not evaluated. In the daily
   table those posts get their status from the evidence, never from the model, so the evaluation matches where the model
   is used.
+
+## Amendment 6 (2026-10-08, after v2.2): no more looks at the locked test
+
+The locked test has been used four times; it can no longer separate small differences (C1 and C2 sit within half a point
+of their lines). From now on:
+- Model search is re-run on train cross-validation only, with the repaired inputs (corrected labels, followers at the
+  horizon): both platforms, days 14 / 30 / 60, feature sets `base+creator` and `base+creator+jump+cnorm`, the same 12
+  candidates and pick rules (run name v2.3, `results/model_v2_3_selection.csv`).
+- The next clean test is "fresh-2": posts published after 2026-09-24, never used. Day-14 models are scored when those
+  posts reach day 14 (from about 2026-10-21), day-30 models from about 2026-11-06. v2.2 and the v2.3 candidate are both
+  scored once on fresh-2 with the C1-C6 rules; the one that passes more targets (ties: v2.2, already in use) is used.
+- Production stays on v2.2 until then.
+- Pre-2025 posts were checked as a possible holdout: none exist in the BIRA mart, so fresh-2 is the only clean option.

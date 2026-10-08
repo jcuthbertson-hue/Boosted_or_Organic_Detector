@@ -273,6 +273,7 @@ if __name__ == "__main__":
     ap.add_argument("--develop2", action="store_true", help="plan amendment 3: day-60 model and the jump / creator-norm features")
     ap.add_argument("--final", action="store_true")
     ap.add_argument("--v21", action="store_true", help="plan amendment 4: corrected Instagram labels, Instagram models only, v2.1 file names")
+    ap.add_argument("--v23", action="store_true", help="plan amendment 6: re-run train-only model search with repaired inputs")
     ap.add_argument("--v22", action="store_true", help="plan amendment 5: followers at horizon; same configurations as v2 (TikTok) "
                                                        "and v2.1 (Instagram), corrected labels, v2.2 file names")
     a = ap.parse_args()
@@ -285,11 +286,16 @@ if __name__ == "__main__":
         sel = pd.concat([pd.read_csv("results/model_v2_selection.csv").query("platform == 'Tiktok'"),
                          pd.read_csv("results/model_v2_1_selection.csv").query("platform == 'Instagram'")])
         sel.to_csv("results/model_v2_2_selection.csv", index=False)     # the configurations v2.2 refits (no new search)
+    if a.v23:
+        RUN.update(tag="v2.3", results="results/model_v2_3", models="models/boost_detector_v2_3", optin_fix=True,
+                   followers="data/v2_followers.psv")
     d = load(optin_fix=RUN["optin_fix"], horizon_followers=RUN["followers"])
     if a.develop:
         develop(d)
     if a.develop2:
         develop(d, ROUND2)
+    if a.v23 and not a.final:
+        develop(d, {H: ["base+creator", "base+creator+jump+cnorm"] for H in HORIZONS})
     if a.v21 and not (a.develop or a.develop2 or a.final):
         develop(d, {60: ["base+creator", "base+creator+jump+cnorm"], 30: ["base+creator", "base+creator+jump+cnorm"],
                     14: ["base+creator", "base+creator+jump+cnorm"]})
