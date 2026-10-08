@@ -214,7 +214,7 @@ def evaluate(y, p, thr, meta):
     return m
 
 
-def final(d):
+def final(d, evaluate_heldout=True):
     sel = pd.read_csv(f"{RUN['results']}_selection.csv")
     report = {"train_end": str(TRAIN_END.date()), "test": ["2026-07-01", str(TEST_END.date())],
               "fresh": [str(FRESH[0].date()), str(FRESH[1].date())], "models": {}}
@@ -246,7 +246,7 @@ def final(d):
                            "cv_roc_auc": float(roc_auc_score(meta.y[tr], p_oof)), "cv_pr_auc": float(average_precision_score(meta.y[tr], p_oof)),
                            "cv_ece": ece(meta.y[tr], p_oof), "in_sample_roc_auc": float(roc_auc_score(meta.y[tr], model.predict_proba(X[tr])[:, 1]))}}
             for name, msk in [("test", te), ("fresh", fr)]:
-                if msk.sum() and meta.y[msk].nunique() == 2:
+                if evaluate_heldout and msk.sum() and meta.y[msk].nunique() == 2:
                     p = model.predict_proba(X[msk])[:, 1]
                     r[name] = evaluate(meta.y[msk].values, p, thr, meta[msk])
                     out = meta[msk][["psrk", "platform", "pub", "y", "material", "tag", "spend_day", "creator"]].copy()
@@ -274,6 +274,7 @@ if __name__ == "__main__":
     ap.add_argument("--final", action="store_true")
     ap.add_argument("--v21", action="store_true", help="plan amendment 4: corrected Instagram labels, Instagram models only, v2.1 file names")
     ap.add_argument("--v23", action="store_true", help="plan amendment 6: re-run train-only model search with repaired inputs")
+    ap.add_argument("--fit-only", action="store_true", help="with --final: fit and save, no locked-test or fresh scoring (amendment 6)")
     ap.add_argument("--v22", action="store_true", help="plan amendment 5: followers at horizon; same configurations as v2 (TikTok) "
                                                        "and v2.1 (Instagram), corrected labels, v2.2 file names")
     a = ap.parse_args()
@@ -300,4 +301,4 @@ if __name__ == "__main__":
         develop(d, {60: ["base+creator", "base+creator+jump+cnorm"], 30: ["base+creator", "base+creator+jump+cnorm"],
                     14: ["base+creator", "base+creator+jump+cnorm"]})
     if a.final:
-        final(d)
+        final(d, evaluate_heldout=not a.fit_only)
