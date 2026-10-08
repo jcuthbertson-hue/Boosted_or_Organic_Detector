@@ -13,7 +13,7 @@ DATA_DATE = pd.Timestamp("2026-10-07")
 
 
 def main(report="results/model_v2_report.json", predictions="results/model_v2_test_predictions.csv",
-         out_path="results/model_v2_targets.json"):
+         out_path="results/model_v2_targets.json", followers=None):
     r = json.load(open(report))
     m = r["models"]
     preds = pd.read_csv(predictions, dtype={"psrk": str})
@@ -35,7 +35,7 @@ def main(report="results/model_v2_report.json", predictions="results/model_v2_te
     T["C3"] = {pf: {"ece": m[f"{pf}_h30"]["test"]["ece"], "pass": bool(m[f"{pf}_h30"]["test"]["ece"] <= 0.05)} for pf in goal}
 
     # C4: coverage among posts >= 14 days old with a public read by day 7, and day-14 vs day-30 F1 on the same test posts
-    d = load()
+    d = load(horizon_followers=followers)          # eligibility as the scored models define it
     age = (DATA_DATE - d.pub).dt.days
     base = (age >= 14) & (d.a_min <= 7)
     _, ok30 = build(d, 30)
@@ -96,6 +96,9 @@ if __name__ == "__main__":
     import sys
     if "--fixed" in sys.argv:          # plan amendment 4: corrected Instagram labels, same v2 models
         main("results/model_v2_report_fixed.json", "results/model_v2_test_predictions_fixed.csv", "results/model_v2_targets_fixed.json")
+    elif "--v22" in sys.argv:          # plan amendment 5: followers at horizon, both platforms, corrected labels
+        main("results/model_v2_2_report.json", "results/model_v2_2_test_predictions.csv", "results/model_v2_2_targets.json",
+             followers="data/v2_followers.psv")
     elif "--v21" in sys.argv:          # production set: TikTok v2 + Instagram v2.1, corrected labels (detector/combine_v21.py)
         main("results/model_v2_1_combined_report.json", "results/model_v2_1_combined_predictions.csv", "results/model_v2_1_targets.json")
     else:

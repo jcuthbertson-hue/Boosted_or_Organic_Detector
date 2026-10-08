@@ -31,8 +31,10 @@ STATUS = {"CONFIRMED_PAID_TAG": "PAID_CONFIRMED", "CONFIRMED_AD_LINK": "PAID_CON
           "LOGGED_PAID_DATE_ONLY": "PAID_LOGGED"}
 PAID = {"PAID_CONFIRMED", "PAID_MEASURED", "PAID_LOGGED", "PAID_PREDICTED"}
 MODEL_VERSION = "boost_detector_v1 (train < 2026-07-01)"
-# Instagram uses v2.1 (same method, trained on labels corrected for stale opt-in, plan amendment 4) when it exists
-V2_MODELS = {"Tiktok": ["models/boost_detector_v2"], "Instagram": ["models/boost_detector_v2_1", "models/boost_detector_v2"]}
+# preference order per platform: v2.2 (followers known at the horizon, plan amendment 5), then v2.1 (Instagram labels
+# corrected for stale opt-in, amendment 4), then v2
+V2_MODELS = {"Tiktok": ["models/boost_detector_v2_2", "models/boost_detector_v2"],
+             "Instagram": ["models/boost_detector_v2_2", "models/boost_detector_v2_1", "models/boost_detector_v2"]}
 OPTIN_ORGANIC = 0.90     # Instagram: opt-in organic views >= 90% of public views = measured organic (same cut as the N label)
 
 
@@ -52,9 +54,10 @@ def score(features):
     return pd.concat(out) if out else pd.DataFrame(columns=cols)
 
 
-def score_v2(raw):
+def score_v2(raw, raw_hf=None):
     """Model v2: the longest horizon a post qualifies for wins (day 60, then day 30, then day 14).
-    raw = sql/11 (+ sql/12) output loaded with detector.features_v2.load. Each saved model names its feature set."""
+    raw = sql/11 (+ sql/12) output loaded with detector.features_v2.load; raw_hf = the same with sql/14 horizon followers,
+    used for v2.2 models (they were trained on it). Each saved model names its feature set and version."""
     from detector.train_v2 import features
     out, cache = [], {}
     for H in (60, 30, 14):
@@ -64,14 +67,17 @@ def score_v2(raw):
             if path is None:
                 continue
             b = joblib.load(path)
-            key = (H, b.get("feature_set", "base"))
+            src = raw_hf if b.get("version") == "v2.2" else raw
+            if src is None:
+                raise ValueError(f"{path} needs sql/14 horizon followers (--features-v2-followers)")
+            key = (H, b.get("feature_set", "base"), id(src))
             if key not in cache:
-                cache[key] = features(raw, H, key[1])
+                cache[key] = features(src, H, key[1])
             X, ok = cache[key]
-            m = ok & (raw.platform == platform)
+            m = ok & (src.platform == platform)
             if not m.any():
                 continue
-            g = raw.loc[m, ["psrk", "platform"]].copy()
+            g = src.loc[m, ["psrk", "platform"]].copy()
             g["model_score"] = b["model"].predict_proba(X.loc[m, b["features"]])[:, 1]
             g["model_threshold"] = b["threshold"]
             g["model_horizon"] = H
@@ -255,6 +261,7 @@ def main():
     ap.add_argument("--model", choices=["v2", "v1"], default="v2", help="v2: day 60/30/14 models (TikTok v2, Instagram v2.1)")
     ap.add_argument("--features-v2", default="data/v2_raw.psv", help="offline: sql/11 output (model v2)")
     ap.add_argument("--features-v2-extra", default="data/v2_extra.psv", help="offline: sql/12 output (model v2)")
+    ap.add_argument("--features-v2-followers", default="data/v2_followers.psv", help="offline: sql/14 output (model v2.2)")
     ap.add_argument("--snowflake", action="store_true")
     ap.add_argument("--target-schema", default=None, help="DB.SCHEMA to MERGE into; omit to write CSV only")
     ap.add_argument("--run-date", default=str(dt.date.today()))
@@ -273,12 +280,13 @@ def main():
             features = build(load(tmp.name))
         else:   # sql/11 and sql/12 return one pipe-separated string per post (column s), read by detector.features_v2.load
             paths = {}
-            for name, sql in (("raw", "sql/11_v2_features_and_labels.sql"), ("extra", "sql/12_v2_jump_features.sql")):
+            for name, sql in (("raw", "sql/11_v2_features_and_labels.sql"), ("extra", "sql/12_v2_jump_features.sql"),
+                              ("followers", "sql/14_v2_horizon_followers.sql")):
                 q = query(conn, sql).sort_values("rn")
                 with tempfile.NamedTemporaryFile("w", suffix=".psv", delete=False) as tmp:
                     tmp.write("\n".join(q.s.astype(str)) + "\n")
                 paths[name] = tmp.name
-            a.features_v2, a.features_v2_extra = paths["raw"], paths["extra"]
+            a.features_v2, a.features_v2_extra, a.features_v2_followers = paths["raw"], paths["extra"], paths["followers"]
     else:
         conn = None
         flags = read_flags(a.flags, a.optin_live, a.tier_changes)
@@ -288,7 +296,9 @@ def main():
     if a.model == "v2":
         from detector.features_v2 import load as load_v2
         raw = load_v2(a.features_v2, extra=a.features_v2_extra)
-        d = add_model_note_v2(classify(flags, score_v2(raw), pd.Timestamp(a.run_date).date()), raw)
+        raw_hf = load_v2(a.features_v2, extra=a.features_v2_extra, horizon_followers=a.features_v2_followers) \
+            if a.features_v2_followers and os.path.exists(a.features_v2_followers) else None
+        d = add_model_note_v2(classify(flags, score_v2(raw, raw_hf), pd.Timestamp(a.run_date).date()), raw_hf if raw_hf is not None else raw)
     else:
         d = add_model_note(classify(flags, score(features), pd.Timestamp(a.run_date).date()), features)
     table = to_table(d)

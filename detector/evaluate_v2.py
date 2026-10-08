@@ -33,6 +33,11 @@ RUNS = {  # name -> inputs; "v21" = production set: TikTok v2 + Instagram v2.1, 
                 sel=["results/model_v2_selection.csv", "results/model_v2_1_selection.csv"],
                 models={"Tiktok": "models/boost_detector_v2", "Instagram": "models/boost_detector_v2_1"},
                 optin_fix=True, out="results/classification_metrics_v2_1.json"),
+    # v2.2 = plan amendment 5: followers known at the horizon; same configurations, both platforms, corrected labels
+    "v22": dict(report="results/model_v2_2_report.json", preds="results/model_v2_2_test_predictions.csv",
+                sel=["results/model_v2_2_selection.csv"],
+                models={"Tiktok": "models/boost_detector_v2_2", "Instagram": "models/boost_detector_v2_2"},
+                optin_fix=True, followers="data/v2_followers.psv", out="results/classification_metrics_v2_2.json"),
 }
 
 
@@ -45,7 +50,7 @@ def main(run="v2"):
         sel = sel[(sel.platform == "Tiktok") & sel.src.str.endswith("model_v2_selection.csv") |
                   (sel.platform == "Instagram") & sel.src.str.endswith("model_v2_1_selection.csv")]
     v1 = json.load(open("results/classification_metrics.json"))
-    d = load(optin_fix=R["optin_fix"])
+    d = load(optin_fix=R["optin_fix"], horizon_followers=R.get("followers"))
     out = {"run": run, "labels": rep.get("labels", "as pulled (sql/11)"), "test_cutoff": str(TRAIN_END.date()), "test_end": str(TEST_END.date()), "fresh": rep["fresh"], "n_boot": 1000,
            "bootstrap": "creator-cluster (resample creators, keep all their posts)", "platforms": {}, "day14": {}, "day60": {}, "v1_vs_v2": {}}
     for pf in PLATFORMS:
@@ -162,4 +167,4 @@ def main(run="v2"):
 
 if __name__ == "__main__":
     import sys
-    main("v21" if "--v21" in sys.argv else "v2")
+    main("v22" if "--v22" in sys.argv else "v21" if "--v21" in sys.argv else "v2")

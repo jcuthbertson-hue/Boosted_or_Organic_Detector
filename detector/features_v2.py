@@ -13,7 +13,7 @@ RAW_COLS = ["psrk", "platform", "pub", "creator", "client", "n30", "n60", "a_min
             "l1", "l3", "l7", "l14", "l30", "l60", "c7", "c30", "s30", "followers",
             "r7", "r14", "r30", "r60", "o14", "o30", "spend_day", "tag", "paid_date", "lab30", "lab14"]
 LABEL_ONLY = ["o14", "o30", "o60", "spend_day", "tag", "paid_date", "lab30", "lab14", "lab60", "ov14", "ov30", "ov60",
-              "fz14", "pg14", "fz30", "pg30", "fz60", "pg60", "fza", "pga", "stale14", "stale30", "stale60"]
+              "fz14", "pg14", "fz30", "pg30", "fz60", "pg60", "fza", "pga", "stale14", "stale30", "stale60", "n30_optin"]
 # sql/12: what happens during the biggest view jump (likes per new view), extra ages, day-60 opt-in (label only)
 EXTRA_COLS = ["psrk", "platform", "o60", "v25", "v28", "l21", "l45",
               "ja14", "jl14", "ml14", "ja30", "jl30", "ml30", "ja60", "jl60", "ml60"]
@@ -24,10 +24,13 @@ RATES = {60: ["r7", "r14", "r30", "r60"], 30: ["r7", "r14", "r30"], 14: ["r7", "
 
 STALE_DAYS, STALE_GROWTH = 7, 0.05      # plan amendment 4 (chosen on train)
 STALE_COLS = ["psrk", "fz14", "pg14", "fz30", "pg30", "fz60", "pg60", "fza", "pga", "n30_optin"]
+HF_COLS = ["psrk", "platform", "f14", "f30", "f60", "a_max30"]     # sql/14 (plan amendment 5): followers known at day H
 
 
-def load(path="data/v2_raw.psv", extra="data/v2_extra.psv", optin_fix=False, stale="data/optin_staleness.psv"):
-    """optin_fix=True applies plan amendment 4: Instagram opt-in labels use the last read where opt-in still updated."""
+def load(path="data/v2_raw.psv", extra="data/v2_extra.psv", optin_fix=False, stale="data/optin_staleness.psv",
+         horizon_followers=None):
+    """optin_fix=True applies plan amendment 4: Instagram opt-in labels use the last read where opt-in still updated.
+    horizon_followers = sql/14 file (plan amendment 5): followers and day-30 eligibility use only reads up to day H."""
     d = pd.read_csv(path, sep="|", header=None, names=RAW_COLS, dtype=str, keep_default_na=False)
     d["platform"] = d.platform.map({"I": "Instagram", "T": "Tiktok"})
     for c in RAW_COLS:
@@ -46,9 +49,22 @@ def load(path="data/v2_raw.psv", extra="data/v2_extra.psv", optin_fix=False, sta
         d = d.merge(e, on=["psrk", "platform"], how="left", validate="one_to_one")
         assert len(d) == n
         d["lab60"] = label60(d)
+    if horizon_followers:
+        h = pd.read_csv(horizon_followers, sep="|", header=None, names=HF_COLS, dtype=str, keep_default_na=False)
+        h["platform"] = h.platform.map({"I": "Instagram", "T": "Tiktok"})
+        for c in HF_COLS[2:]:
+            h[c] = pd.to_numeric(h[c].replace("", np.nan), errors="coerce")
+        n = len(d)
+        d = d.merge(h, on=["psrk", "platform"], how="left", validate="one_to_one")
+        assert len(d) == n
     if optin_fix:
         d = fix_optin_labels(d, stale)
     return d
+
+
+def followers_at(d, H):
+    """Followers known at day H (sql/14) when loaded, else the sql/11 median over days 0-60 (v2 and v2.1 models)."""
+    return d[f"f{H}"] if f"f{H}" in d else d.followers
 
 
 def ig_labels(d, H, o):
@@ -97,7 +113,8 @@ def build(d, H):
     """Return (X, eligible mask). X has only horizon-H public features."""
     ages, lages = AGES[H], LIKE_AGES[H]
     vH = d[f"v{H}"].where(d[f"v{H}"] > 0)
-    f = d.followers.where(d.followers > 0)
+    fol = followers_at(d, H)
+    f = fol.where(fol > 0)
     X = pd.DataFrame(index=d.index)
     X["log_followers"] = np.log10(f)
     X["log_views"] = np.log10(vH)
@@ -127,8 +144,8 @@ def build(d, H):
     X = X.replace([np.inf, -np.inf], np.nan)
     if H == 60:
         eligible = (d.a_max >= 55) & (d.n60 >= 3) & vH.notna() & f.notna()
-    elif H == 30:
-        eligible = (d.a_max >= 28) & (d.n30 >= 2) & vH.notna() & f.notna()
+    elif H == 30:     # with sql/14: the last read up to day 30 (amendment 5), else up to day 60
+        eligible = (d.get("a_max30", d.a_max) >= 28) & (d.n30 >= 2) & vH.notna() & f.notna()
     else:
         eligible = (d.a_max14 >= 12) & (d.a_min <= 10) & vH.notna() & f.notna()
     return X, eligible
@@ -197,5 +214,6 @@ def creator_norms(d, H):
     out = pd.DataFrame(index=d.index)
     out["creator_rel_lpv"] = _rel_to_prior(d, np.log10(_safe_div(d[lb], vH) + 1e-4))
     out["creator_rel_share_v3"] = _rel_to_prior(d, _safe_div(d.v3, vH).clip(0, 1))
-    out["creator_rel_vtf"] = _rel_to_prior(d, np.log10(_safe_div(vH, d.followers.where(d.followers > 0))))
+    fol = followers_at(d, H)
+    out["creator_rel_vtf"] = _rel_to_prior(d, np.log10(_safe_div(vH, fol.where(fol > 0))))
     return out.replace([np.inf, -np.inf], np.nan)

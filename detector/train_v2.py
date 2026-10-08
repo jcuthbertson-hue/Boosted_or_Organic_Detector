@@ -32,7 +32,7 @@ TEST_END = pd.Timestamp("2026-09-09")
 FRESH = (pd.Timestamp("2026-09-10"), pd.Timestamp("2026-09-24"))
 PLATFORMS = ["Tiktok", "Instagram"]
 # output names; --v21 switches to the v2.1 run (plan amendment 4: corrected Instagram labels, Instagram only)
-RUN = {"tag": "v2", "results": "results/model_v2", "models": "models/boost_detector_v2", "optin_fix": False}
+RUN = {"tag": "v2", "results": "results/model_v2", "models": "models/boost_detector_v2", "optin_fix": False, "followers": None}
 HORIZONS = [60, 30, 14]          # day 60 added in plan amendment 3 (exploratory; C1-C6 use days 30 and 14)
 
 
@@ -273,11 +273,19 @@ if __name__ == "__main__":
     ap.add_argument("--develop2", action="store_true", help="plan amendment 3: day-60 model and the jump / creator-norm features")
     ap.add_argument("--final", action="store_true")
     ap.add_argument("--v21", action="store_true", help="plan amendment 4: corrected Instagram labels, Instagram models only, v2.1 file names")
+    ap.add_argument("--v22", action="store_true", help="plan amendment 5: followers at horizon; same configurations as v2 (TikTok) "
+                                                       "and v2.1 (Instagram), corrected labels, v2.2 file names")
     a = ap.parse_args()
     if a.v21:
         RUN.update(tag="v2.1", results="results/model_v2_1", models="models/boost_detector_v2_1", optin_fix=True)
         PLATFORMS[:] = ["Instagram"]
-    d = load(optin_fix=RUN["optin_fix"])
+    if a.v22:
+        RUN.update(tag="v2.2", results="results/model_v2_2", models="models/boost_detector_v2_2", optin_fix=True,
+                   followers="data/v2_followers.psv")
+        sel = pd.concat([pd.read_csv("results/model_v2_selection.csv").query("platform == 'Tiktok'"),
+                         pd.read_csv("results/model_v2_1_selection.csv").query("platform == 'Instagram'")])
+        sel.to_csv("results/model_v2_2_selection.csv", index=False)     # the configurations v2.2 refits (no new search)
+    d = load(optin_fix=RUN["optin_fix"], horizon_followers=RUN["followers"])
     if a.develop:
         develop(d)
     if a.develop2:
