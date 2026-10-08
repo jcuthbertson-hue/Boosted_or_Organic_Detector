@@ -13,6 +13,7 @@ import html
 import json
 import math
 import os
+import re
 
 OUT = "reports/boost_report.html"
 REPO = "https://github.com/jcuthbertson-hue/boosted_or_organic_detector/tree/claude/funny-franklin-5w06tt"
@@ -83,7 +84,8 @@ def load():
                 RL=j("results/model_v2_relabel.json") if os.path.exists("results/model_v2_relabel.json") else None,
                 ST=j("results/optin_staleness.json") if os.path.exists("results/optin_staleness.json") else None,
                 MF=j("results/month_folds.json") if os.path.exists("results/month_folds.json") else None,
-                AU=j("results/ig_miss_audit.json") if os.path.exists("results/ig_miss_audit.json") else None)
+                AU=j("results/ig_miss_audit.json") if os.path.exists("results/ig_miss_audit.json") else None,
+                EQ=j("results/vn_boost_equation.json") if os.path.exists("results/vn_boost_equation.json") else None)
 
 
 # ---------------------------------------------------------------- small components
@@ -402,6 +404,193 @@ def overview(D):
                           times(R["metric_match"]["facebook_side"][n]["median"]) if R["metric_match"]["facebook_side"][n]["n"] else "no data"]
                          for n in R["metric_match"]["instagram_side"]]))
     return f'<section id="overview" class="grid">{a}{b}{c}{d}{e}{f}</section>'
+
+
+def millions(x):
+    return f"{x / 1e6:.1f}M" if x >= 1e6 else f"{x / 1e3:.0f}K"
+
+
+def term(cls, text):
+    """a term in its own color, the same color as its bar (one color per quantity, everywhere in the section)"""
+    return f'<span class="t {cls}">{esc(text)}</span>'
+
+
+def claim_card(kicker, claim, body, proof, *, cls="", attrs=""):
+    """claim first (one sentence), then the chart that proves it, then where every number comes from"""
+    return (f'<article class="card claim-card anim {cls}" {attrs}><div class="claim-head"><span class="kicker">{kicker}</span>'
+            f'<h3 class="claim">{claim}</h3></div>{body}<p class="proof"><b>Proof.</b> {proof}</p></article>')
+
+
+def dot_plot(rows, d):
+    """one dot per post, stacked in 2.5-point bins of (organic + boosted) ÷ total; the band is ±10%"""
+    n = len(d["instagram_side"]["counts"])
+    lo, w = d["bin_from"], d["bin_width"]
+    hi = lo + n * w
+    x = lambda v: 100 * (v - lo) / (hi - lo)
+    inband = lambda i: .9 - 1e-9 <= lo + i * w and lo + (i + 1) * w <= 1.1 + 1e-9
+    out = ""
+    for lab, sub, key, stat in rows:
+        cols = "".join(f'<span class="dp-col">' + "".join(f'<i class="pop{" in" if inband(i) else ""}" style="--d:{.02 * i:.2f}s"></i>' for _ in range(c)) + "</span>"
+                       for i, c in enumerate(d[key]["counts"]))
+        out += (f'<div class="dp-row"><div class="dp-lab"><b>{lab}</b><span>{sub}</span></div>'
+                f'<div class="dp-plot" role="img" aria-label="{esc(lab)}: {sum(d[key]["counts"])} posts, one dot each. {esc(re.sub("<[^>]+>", "", stat))}.">'
+                f'<i class="dp-band" style="left:{x(.9):.1f}%;width:{x(1.1) - x(.9):.1f}%"></i>'
+                f'<i class="dp-one" style="left:{x(1):.1f}%"></i><div class="dp-cols" style="--n:{n}">{cols}</div></div>'
+                f'<div class="dp-stat">{stat}</div></div>')
+    ticks = "".join(f'<span style="left:{x(v):.1f}%">{t}</span>' for v, t in ((lo, f"≤{lo:.0%}"), (.75, "75%"), (1, "100%"), (1.25, "125%"), (hi, f"≥{hi:.0%}")))
+    return f'<div class="dp">{out}<div class="dp-axis"><span class="dp-gap"></span><div class="dp-ticks">{ticks}</div><span class="dp-gap"></span></div></div>'
+
+
+def range_rows(groups, top=1.2):
+    """median (dot) and middle half (bar) of (organic + boosted) ÷ total, on one 0–120% line with 100% marked"""
+    x = lambda v: 100 * min(v, top) / top
+    out = ""
+    for g, cls, rows in groups:
+        out += f'<div class="rr-g">{g}</div>'
+        for lab, c, best in rows:
+            tip = (f"Typical post: {pct(c['median'])}. Middle half of posts: {pct(c['q25'])} to {pct(c['q75'])}. "
+                   f"Within 10%: {pct(c['within_10pct'])} of {c['posts']} posts.")
+            out += (f'<div class="rr {cls}{" best" if best else ""}"><span class="rr-l">{lab}</span><div class="rr-track"><i class="rr-one" style="left:{x(1):.1f}%"></i>'
+                    f'<i class="rr-iqr grow" style="left:{x(c["q25"]):.1f}%;width:{x(c["q75"]) - x(c["q25"]):.1f}%"></i>'
+                    f'<i class="rr-dot" style="left:{x(c["median"]):.1f}%" tabindex="0" data-tip="{esc(tip)}"></i></div><b>{pct(c["median"])}</b></div>')
+    return f'<div class="rr-wrap">{out}<div class="rr rr-axis"><span></span><div class="rr-ticks">' + "".join(
+        f'<span style="left:{x(v):.1f}%">{v:.0%}</span>' for v in (0, .5, 1)) + '</div><b></b></div></div>'
+
+
+def waffle(rows):
+    """100 squares = all paid impressions; largest-remainder rounding so the squares add to 100"""
+    tot = sum(r["impressions"] for r in rows)
+    raw = [100 * r["impressions"] / tot for r in rows]
+    n = [int(v) for v in raw]
+    for i in sorted(range(len(raw)), key=lambda i: raw[i] - n[i], reverse=True)[:100 - sum(n)]:
+        n[i] += 1
+    cls = {"Facebook": "f", "Instagram": "i"}
+    cells = "".join(f'<i class="{cls.get(r["placement"], "x")} pop" style="--d:{.006 * k:.3f}s"></i>' for r, c in zip(rows, n) for k in range(c))
+    return f'<div class="waffle" role="img" aria-label="Paid impressions by placement: {", ".join(f"{r["placement"]} {pct(v / 100, 2)}" for r, v in zip(rows, raw))}">{cells}</div>'
+
+
+def equation(D):
+    """Posts VN boosted itself: does organic + boosted = the total seen on the platform? Claims first, each proved by one chart."""
+    E, R = D.get("EQ"), D["R"]
+    if not E:
+        return ""
+    ig, fp, so, po, pl = E["instagram_side"], E["full_platform"], E["socapi"], E["pooled_full_platform"], E["placements"]["rows"]
+    best, ig_best = fp["with paid Facebook video plays"], ig["Impressions"]
+    parts = po["organic"] + po["paid_instagram_impressions"] + po["paid_facebook_plays"] + po["paid_other_plays"]
+    total, nim = po["socapi_total"], po["nimble"]
+    fb_total = total - nim
+    ptot = sum(r["impressions"] for r in pl)
+    fb_share = pl[0]["impressions"] / ptot
+    other = sum(r["impressions"] for r in pl[2:]) / ptot
+    window = f"{day(so['reads_from'])} – {day(so['reads_to'], True)}"
+    o, i_, f_ = term("o", "organic"), term("i", "paid Instagram"), term("f", "paid Facebook")
+    n_in10 = round(best["within_10pct"] * best["posts"])
+    ps = R["paid_share_of_public"]["median"]
+    sub_ = R["recipes"]["public - paid IG Impressions"]
+    gap = ig_best["median_abs_gap"]
+
+    # the answer, in four lines an executive can repeat
+    strip = [("1", "It adds up", pct(best["median"]), f"of the total, for a typical post, once Facebook is counted. All {best['posts']} posts are within 25%.", "#eq-sum"),
+             ("2", "Facebook", pct(so["facebook_share_of_total_median"]), "of the total is on Facebook. Nimble shows the Instagram part only.", "#eq-fb"),
+             ("3", "Placements", pct(other, 2), "of paid impressions ran outside Facebook and Instagram. Too small to matter.", "#eq-types"),
+             ("4", "Still to do", f'<span id="ac-count">{best["posts"]}</span>', "posts to check by hand in the Instagram app before we quote a total.", "#appcheck")]
+    tiles = "".join(f'<a class="ans" href="{h}"><span class="ans-k"><i>{k}</i>{esc(t)}</span><b>{v}</b><span class="ans-s">{esc(sx)}</span></a>' for k, t, v, sx, h in strip)
+    head = (f'<div class="block-head"><div><h2>Organic + boosted = total seen?</h2>'
+            f'<p class="card-sub">Posts VN boosted itself. One read per post, 2 or more days after the last ad day. Each claim below links to the chart that proves it.</p></div></div>'
+            f'<div class="answers">{tiles}</div>')
+
+    # claim 1: the sum, built up term by term on one scale
+    scale = max(total, parts)
+    seg = lambda v, cls, d, lab="", short="": (f'<i class="sg {cls} grow" style="width:{100 * v / scale:.2f}%;--d:{d}s">'
+                                               + (f'<span class="lg">{lab}</span><span class="sm">{short}</span>' if lab else "") + "</i>")
+    sumtile = lambda cls, lab, v, tip: f'<div class="eqn-t {cls}"><span>{lab}</span><b class="num" tabindex="0" data-tip="{esc(tip)}">{millions(v)}</b></div>'
+    opx = lambda c: f'<span class="eqn-op" aria-hidden="true">{c}</span>'
+    eqn = ('<div class="eqn">'
+           + sumtile("o", "organic", po["organic"], "Creator account data (opt-in). It counts Instagram organic views only.")
+           + opx("+") + sumtile("i", "paid Instagram", po["paid_instagram_impressions"], "Paid impressions on Instagram placements, from our Meta ad data.")
+           + opx("+") + sumtile("f", "paid Facebook", po["paid_facebook_plays"], "Paid video plays on Facebook placements, from our Meta ad data.")
+           + opx("≈") + sumtile("tot", "total seen", total, f"SocAPI total plays, Instagram + Facebook. Nimble shows {millions(nim)} for the same posts: Instagram only.")
+           + "</div>")
+    bars = (f'<div class="eqb"><div class="eqb-row"><span class="eqb-l">Our parts</span><div class="eqb-track">'
+            f'{seg(po["organic"], "o", 0)}{seg(po["paid_instagram_impressions"], "i", .25, "paid Instagram", "IG")}{seg(po["paid_facebook_plays"] + po["paid_other_plays"], "f", .5, "paid Facebook", "paid FB")}'
+            f'</div><b class="eqb-r">{pct(parts / total)}</b></div>'
+            f'<div class="eqb-row"><span class="eqb-l">Total seen</span><div class="eqb-track">{seg(nim, "ip", .85, "Instagram part (Nimble)", "IG")}{seg(fb_total, "fp", 1.05, "Facebook part", "FB part")}'
+            f'</div><b class="eqb-r">100%</b></div>'
+            f'<div class="eqb-row"><span class="eqb-l"></span><div class="eqb-brk"><span class="brk" style="width:{100 * nim / scale:.2f}%">'
+            f'{o} + {term("i", "paid IG")} = {pct((po["organic"] + po["paid_instagram_impressions"]) / nim)} of it</span>'
+            f'<span class="brk" style="width:{100 * fb_total / scale:.2f}%">{term("f", "paid Facebook")} = {pct(po["paid_facebook_plays"] / fb_total)} of it</span></div><b></b></div></div>')
+    c1 = claim_card("Claim 1 · the answer",
+                    f"Yes. {o} + {i_} + {f_} adds up to {pct(parts / total)} of the total seen.",
+                    eqn + bars + f'<p class="claim-note">The {pct(1 - parts / total)} gap sits mostly in the Facebook part: paid Facebook plays count a little below what SocAPI shows.</p>',
+                    f"{best['posts']} posts VN boosted, with SocAPI data, all added together (reads {window}). Organic = creator account data (Instagram only). "
+                    f"Paid = our Meta ad data by placement: impressions on Instagram, video plays on Facebook. Total = SocAPI plays, Instagram + Facebook.",
+                    cls="span3", attrs='id="eq-sum"')
+
+    # claim 1, post by post
+    dp = dot_plot([("Instagram only", f"{ig_best['posts']} posts. {term('o', 'Organic')} + {term('i', 'paid Instagram')}, compared with Nimble.",
+                    "instagram_side", f"<b>{pct(ig_best['within_10pct'])}</b> within 10%"),
+                   ("Instagram + Facebook", f"{best['posts']} posts. {term('o', 'Organic')} + {term('i', 'paid IG')} + {term('f', 'paid FB')}, compared with SocAPI.",
+                    "full_platform", f"<b>{n_in10} of {best['posts']}</b> within 10%")], E["dots"])
+    c1b = claim_card("Claim 1 · post by post", "It is not an average trick. Post by post, the sum lands close to 100%.",
+                     '<p class="claim-sub">Each dot is one post. 100% means organic + paid equals the total exactly. The shaded band is within 10%.</p>' + dp + legend([("dp-k in", "Within 10% (shaded band)"), ("dp-k", "Outside 10%")]),
+                     f"Each dot is one post: (organic + paid) ÷ total. Typical post: {pct(ig_best['median'])} on Instagram only ({ig_best['posts']} posts), "
+                     f"{pct(best['median'])} with Facebook ({best['posts']} posts). Same read rule as above.", cls="span3")
+
+    # callout 1: Facebook cross-posting
+    igp = 1 - so["facebook_share_of_total_median"]
+    c2 = claim_card("Callout 1 · Facebook cross-posting",
+                    f"Nimble shows the Instagram part only. The full total is {so['total_over_nimble_median']:.2f}× bigger.",
+                    f'<div class="fbx"><div class="fbx-bar"><i class="sg ip grow" style="width:{100 * igp:.1f}%"><span>{pct(igp)}</span></i>'
+                    f'<i class="sg fp grow" style="width:{100 * (1 - igp):.1f}%;--d:.3s"><span>{pct(1 - igp)}</span></i></div>'
+                    f'<div class="fbx-lab"><span style="width:{100 * igp:.1f}%">Instagram: what Nimble shows</span><span>Facebook: what Nimble misses</span></div></div>'
+                    f'<div class="facts"><div><b>{so["instagram_plays_over_nimble_median"]:.2f}×</b><span>SocAPI\'s Instagram number ÷ Nimble. The Instagram parts agree, so the extra is Facebook.</span></div>'
+                    f'<div><b class="t f">{pct(fb_share, 1)}</b><span>of paid impressions on these campaigns ran on Facebook. The Facebook part is mostly paid.</span></div></div>',
+                    f"Typical post of {so['posts']} (reads {window}). SocAPI's Instagram plays equal Nimble ({so['instagram_plays_over_nimble_median']:.2f}×), so the extra is Facebook. "
+                    f"SocAPI's Facebook-only field is empty, so Facebook = total − Instagram. Paid split: Snowflake EDW Meta ad tables, all dates.",
+                    cls="eq-fbcard", attrs='id="eq-fb"')
+
+    # callout 2: which paid view type, and which placements
+    lab = {"Impressions": "impressions", "Video plays (starts)": "video plays", "3-second video views": "3-second views", "ThruPlays": "ThruPlays"}
+    rr = range_rows([(f"Instagram only · {ig_best['posts']} posts", "i", [(f"+ {term('i', 'paid IG ' + lab[k])}", ig[k], k == "Impressions") for k in lab]),
+                     (f"Instagram + Facebook · {best['posts']} posts", "f", [(f"+ {term('f', 'paid FB video plays')}", best, True),
+                                                                         (f"+ {term('f', 'paid FB impressions')}", fp["with paid Facebook impressions"], False)])])
+    wf = (f'<div class="wf-box">{waffle(pl)}<div class="wf-key">{legend([("wf-f", f"Facebook {pct(fb_share, 1)}"), ("wf-i", "Instagram " + pct(pl[1]["impressions"] / ptot, 1)), ("wf-x", "Other " + pct(other, 2))])}'
+          f'<p>1 square = 1% of paid impressions. Audience Network, Messenger and unknown placements do not fill one square.</p></div></div>')
+    c3 = claim_card("Callout 2 · view types and placements",
+                    f"Count {term('i', 'impressions on Instagram')} and {term('f', 'plays on Facebook')}. Other view types miss most views.",
+                    f'<div class="c3-grid"><div><p class="claim-sub">(Organic + paid) ÷ total, by paid metric. Dot = typical post, bar = middle half.</p>{rr}</div>'
+                    f'<div><p class="claim-sub">Where paid impressions ran</p>{wf}</div></div>',
+                    f"Same posts and reads as Claim 1. On Facebook, plays give the tightest spread; impressions land closer on average but spread wider. "
+                    f"Placements: {ptot:,} paid impressions on Meta ads linked to Instagram campaign posts (Snowflake EDW, all dates).",
+                    cls="span2", attrs='id="eq-types"')
+
+    # callout 3: the in-app check (rows live in this artifact's database, never in the page source)
+    c4 = claim_card("Callout 3 · check the total in the app",
+                    "Before we quote a total, a person checks it in the Instagram app.",
+                    '<p class="claim-sub">Our warehouse may not read the total cleanly. Open each post in the app and type the view count you see. '
+                    'The page says which total it is closer to. Everyone with this page sees the same list.</p>'
+                    '<p class="ac-sum" aria-live="polite">The list loads when this page is open in claude.ai.</p>'
+                    '<div class="table-wrap"><table class="ac"><thead><tr><th>Post</th><th class="r">Instagram only (Nimble)</th><th class="r">Instagram + Facebook</th>'
+                    '<th class="r">Views in app</th><th>Cross-posted to Facebook?</th><th>Closer to</th></tr></thead><tbody></tbody></table></div>',
+                    "If most app counts are closer to Instagram + Facebook, the full-platform sum is the one to quote. "
+                    "Nimble and SocAPI numbers are the latest warehouse reads for each post.",
+                    cls="span3", attrs='id="appcheck"')
+
+    # limit: why it cannot run backwards for one post
+    org = 1 - ps
+    lim = claim_card("Limit · one post",
+                     f"It adds up for a total. It does not run backwards to give one post's {o}.",
+                     f'<div class="lim"><div class="lim-bar"><i class="sg i grow" style="width:{100 * ps:.1f}%"><span>{round(100 * ps)} paid</span></i>'
+                     f'<i class="sg o grow" style="width:{100 * org:.1f}%;--d:.3s"></i>'
+                     f'<i class="lim-err" style="left:{100 * (ps - gap):.1f}%;width:{100 * 2 * gap:.1f}%"></i></div>'
+                     f'<div class="lim-lab"><span>A typical boosted post: 100 views</span><span class="lim-o">{round(100 * org)} {term("o", "organic")}</span></div>'
+                     f'<p class="claim-note">The paid count is typically about {round(100 * gap)} views in 100 off (hatched). That miss is almost as big as the whole {o} part. '
+                     f'So {o} = total − paid is {pct(sub_["median_abs_error"])} off for a typical post, and {pct(sub_["negative_organic"])} of posts go below zero. '
+                     f'For one post, use the pre-boost method in Findings.</p></div>',
+                     f"{sub_['posts']} boosted Instagram posts, checked against creator organic. Paid share = typical post. Typical miss = the median gap between "
+                     f"organic + paid impressions and Nimble ({pct(gap, 1)}). TikTok cannot be tested: its creator data counts Spark Ad views.",
+                     cls="span3 lim-card")
+    return f'<section id="equation" class="block">{head}<div class="grid">{c1}{c1b}{c2}{c3}{c4}{lim}</div></section>'
 
 
 def findings(D):
@@ -985,6 +1174,7 @@ CSS = """
   --inv: #141518; --inv-ink: #ffffff; --inv-2: rgba(255,255,255,.72);
   --glass: rgba(255,255,255,.8); --glass-line: rgba(17,18,20,.08); --warn: #8a5300; --warn-bg: #fbf3e4;
   --nav-on: #17181b; --nav-on-ink: #ffffff;
+  --c-o: #0f9e78; --c-i: #2b5cf2; --c-f: #7646e8; --c-o-ink: #067556; --c-i-ink: #1f48d6; --c-f-ink: #5f2fd6; --on-c: #ffffff;
   --font: "Geist", system-ui, -apple-system, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
 }
 @media (prefers-color-scheme: dark) {
@@ -997,6 +1187,7 @@ CSS = """
     --inv: #26272d; --inv-ink: #ffffff; --inv-2: rgba(255,255,255,.7);
     --glass: rgba(29,30,35,.84); --glass-line: rgba(255,255,255,.1); --warn: #f2b766; --warn-bg: #2a2216;
     --nav-on: #f2f3f5; --nav-on-ink: #111214; color-scheme: dark;
+    --c-o: #34d399; --c-i: #6d93ff; --c-f: #a78bfa; --c-o-ink: #6ee7b7; --c-i-ink: #a9c0ff; --c-f-ink: #c9b6ff; --on-c: #0d0e12;
   }
 }
 :root[data-theme="dark"] {
@@ -1008,6 +1199,7 @@ CSS = """
   --inv: #26272d; --inv-ink: #ffffff; --inv-2: rgba(255,255,255,.7);
   --glass: rgba(29,30,35,.84); --glass-line: rgba(255,255,255,.1); --warn: #f2b766; --warn-bg: #2a2216;
   --nav-on: #f2f3f5; --nav-on-ink: #111214; color-scheme: dark;
+    --c-o: #34d399; --c-i: #6d93ff; --c-f: #a78bfa; --c-o-ink: #6ee7b7; --c-i-ink: #a9c0ff; --c-f-ink: #c9b6ff; --on-c: #0d0e12;
 }
 * { box-sizing: border-box; }
 body { background: var(--backdrop); color: var(--ink); font-family: var(--font); font-size: 15px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
@@ -1243,11 +1435,112 @@ footer { color: var(--muted); font-size: 13px; display: flex; justify-content: s
 #tip { position: fixed; z-index: 20; max-width: 320px; background: var(--glass); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--glass-line); color: var(--ink); font-size: 13px; line-height: 1.45; padding: 8px 12px; border-radius: 14px;
   box-shadow: 0 12px 28px -12px rgba(17,18,20,.35); pointer-events: none; }
+/* equation: organic + paid = total */
+.t { font-weight: 500; } .t.o { color: var(--c-o-ink); } .t.i { color: var(--c-i-ink); } .t.f { color: var(--c-f-ink); }
+.answers { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.ans { display: grid; align-content: start; gap: 6px; padding: 18px 18px 16px; border-radius: 22px; background: var(--card); border: 1px solid var(--rule-2); box-shadow: var(--shadow); color: inherit; text-decoration: none; transition: transform .15s ease; }
+.ans:hover { transform: translateY(-2px); } .ans:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ans-k { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 500; color: var(--muted); }
+.ans-k i { font-style: normal; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: var(--ink); color: var(--card); font-size: 11px; font-weight: 600; }
+.ans > b { font-size: 40px; font-weight: 500; letter-spacing: -.045em; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.ans:nth-child(2) > b { color: var(--c-f-ink); } .ans:nth-child(3) > b { color: var(--n4); } .ans:nth-child(4) > b { color: var(--warn); }
+.ans-s { font-size: 13.5px; color: var(--ink-2); }
+.claim-head { display: grid; gap: 6px; }
+.kicker { font-size: 12.5px; font-weight: 500; color: var(--muted); }
+.claim { font-size: clamp(20px, 2.1vw, 25px); line-height: 1.25; letter-spacing: -.02em; }
+.claim-sub { font-size: 13.5px; color: var(--muted); margin: 0 0 10px; }
+.claim-note { font-size: 14.5px; color: var(--ink-2); margin: 0; max-width: 78ch; }
+.proof { margin: auto 0 0; font-size: 12.5px; color: var(--muted); border-top: 1px solid var(--rule); padding-top: 12px; }
+.proof b { color: var(--ink-2); font-weight: 600; }
+.eqn { display: flex; align-items: stretch; gap: 10px; }
+.eqn-t { flex: 1 1 0; min-width: 0; display: grid; gap: 2px; padding: 14px 16px 12px; border-radius: 18px; background: var(--n1); }
+.eqn-t span { font-size: 13px; color: var(--muted); }
+.eqn-t b { font-size: clamp(26px, 3.2vw, 40px); font-weight: 500; letter-spacing: -.045em; line-height: 1.1; }
+.eqn-t.o { box-shadow: inset 0 4px 0 var(--c-o); } .eqn-t.o b { color: var(--c-o-ink); }
+.eqn-t.i { box-shadow: inset 0 4px 0 var(--c-i); } .eqn-t.i b { color: var(--c-i-ink); }
+.eqn-t.f { box-shadow: inset 0 4px 0 var(--c-f); } .eqn-t.f b { color: var(--c-f-ink); }
+.eqn-t.tot { background: var(--inv); } .eqn-t.tot b { color: var(--inv-ink); } .eqn-t.tot span { color: var(--inv-2); }
+.eqn-op { align-self: center; font-size: 28px; font-weight: 300; color: var(--faint); }
+.eqb { display: grid; gap: 10px; margin-top: 4px; }
+.eqb-row { display: grid; grid-template-columns: 92px minmax(0, 1fr) 52px; gap: 14px; align-items: center; }
+.eqb-l { font-size: 13.5px; color: var(--ink-2); }
+.eqb-r { text-align: right; font-size: 15px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.eqb-track, .fbx-bar, .lim-bar { display: flex; gap: 2px; height: 36px; }
+.sg { display: flex; align-items: center; height: 100%; min-width: 3px; border-radius: 8px; overflow: hidden; font-style: normal; transform-origin: left center; }
+.sg span { padding: 0 10px; font-size: 12.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sg.o { background: var(--c-o); } .sg.i { background: var(--c-i); } .sg.f { background: var(--c-f); }
+.sg.o span, .sg.i span, .sg.f span { color: var(--on-c); }
+.sg.ip { background: color-mix(in srgb, var(--c-i) 20%, var(--card)); } .sg.ip span { color: var(--c-i-ink); }
+.sg.fp { background: color-mix(in srgb, var(--c-f) 20%, var(--card)); } .sg.fp span { color: var(--c-f-ink); }
+.eqb-brk { display: flex; gap: 2px; }
+.brk { position: relative; min-width: 0; padding: 14px 6px 0; font-size: 13px; color: var(--ink-2); text-align: center; }
+.brk::before { content: ""; position: absolute; left: 3px; right: 3px; top: 0; height: 8px; border: 1.5px solid var(--n3); border-top: 0; border-radius: 0 0 7px 7px; }
+.dp { display: grid; gap: 22px; }
+.dp-row, .dp-axis { display: grid; grid-template-columns: 210px minmax(0, 1fr) 104px; gap: 18px; }
+.dp-row { align-items: end; }
+.dp-lab { display: grid; gap: 2px; font-size: 13px; color: var(--muted); align-self: center; } .dp-lab b { color: var(--ink); font-weight: 500; font-size: 14.5px; }
+.dp-plot { position: relative; padding-top: 8px; border-bottom: 1px solid var(--n2); }
+.dp-band { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--ink) 6%, transparent); border-radius: 8px 8px 0 0; }
+.dp-one { position: absolute; top: 0; bottom: 0; width: 0; border-left: 1.5px dashed var(--n3); }
+.dp-cols { position: relative; display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); align-items: end; }
+.dp-col { display: flex; flex-direction: column-reverse; align-items: center; gap: 1px; padding-bottom: 2px; }
+.dp-col i { width: min(8px, 85%); aspect-ratio: 1; border-radius: 50%; background: var(--n3); }
+.dp-col i.in, .sw.dp-k.in { background: var(--ink); } .sw.dp-k { background: var(--n3); border-radius: 50%; }
+.dp-stat { font-size: 13px; color: var(--muted); align-self: center; } .dp-stat b { display: block; font-size: 22px; line-height: 1.15; color: var(--ink); font-weight: 500; }
+.dp-ticks, .rr-ticks { position: relative; height: 18px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.dp-ticks span, .rr-ticks span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
+.dp-ticks span:first-child, .rr-ticks span:first-child { transform: none; } .dp-ticks span:last-child { transform: translateX(-100%); }
+.c3-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 32px; }
+.rr-wrap { display: grid; gap: 8px; }
+.rr-g { font-size: 12.5px; font-weight: 500; color: var(--muted); margin-top: 6px; }
+.rr { display: grid; grid-template-columns: minmax(0, 178px) minmax(0, 1fr) 44px; gap: 12px; align-items: center; font-size: 13.5px; }
+.rr > b { text-align: right; font-weight: 500; font-variant-numeric: tabular-nums; }
+.rr:not(.best) > b, .rr:not(.best) .rr-l { color: var(--muted); }
+.rr-track { position: relative; height: 22px; }
+.rr-track::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 1px solid var(--rule); }
+.rr-one { position: absolute; top: -5px; bottom: -5px; border-left: 1.5px dashed var(--n3); }
+.rr-iqr { position: absolute; top: 6px; height: 10px; border-radius: 999px; background: var(--n2); transform-origin: left center; }
+.rr-dot { position: absolute; top: 50%; width: 13px; height: 13px; margin: -6.5px 0 0 -6.5px; border-radius: 50%; background: var(--n4); border: 2px solid var(--card); cursor: help; }
+.rr.best.i .rr-iqr { background: color-mix(in srgb, var(--c-i) 32%, transparent); } .rr.best.i .rr-dot { background: var(--c-i); }
+.rr.best.f .rr-iqr { background: color-mix(in srgb, var(--c-f) 32%, transparent); } .rr.best.f .rr-dot { background: var(--c-f); }
+.rr-axis { margin-top: -2px; }
+.wf-box { display: grid; gap: 14px; max-width: 260px; }
+.sg .sm { display: none; }
+.facts { display: grid; gap: 14px; }
+.facts > div { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 12px; align-items: baseline; }
+.facts b { font-size: 26px; font-weight: 500; letter-spacing: -.035em; font-variant-numeric: tabular-nums; }
+.facts span { font-size: 13.5px; color: var(--ink-2); }
+.waffle { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 3px; }
+.waffle i { aspect-ratio: 1; border-radius: 3px; }
+.waffle i.f, .sw.wf-f { background: var(--c-f); } .waffle i.i, .sw.wf-i { background: var(--c-i); } .waffle i.x, .sw.wf-x { background: var(--n3); }
+.wf-key { display: grid; gap: 8px; } .wf-key .legend { gap: 6px 14px; font-size: 13px; }
+.wf-key p { font-size: 12.5px; color: var(--muted); margin: 0; }
+.fbx { display: grid; gap: 8px; }
+.fbx-bar { height: 48px; } .fbx-bar .sg span { font-size: 16px; }
+.fbx-lab { display: flex; gap: 2px; font-size: 12.5px; color: var(--muted); } .fbx-lab span { min-width: 0; flex: none; padding-right: 8px; } .fbx-lab span:last-child { flex: 1; }
+.lim { display: grid; gap: 12px; }
+.lim-bar { position: relative; height: 40px; margin-top: 6px; }
+.lim-err { position: absolute; top: -6px; bottom: -6px; border-radius: 9px; border: 1.5px solid var(--warn);
+  background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--warn) 45%, transparent) 0 2px, transparent 2px 7px); }
+.lim-lab { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--muted); }
+.eq-anim .anim .grow { transform: scaleX(0); transition: transform .8s cubic-bezier(.2, .8, .2, 1) var(--d, 0s); }
+.eq-anim .anim.in .grow { transform: none; }
+.eq-anim .anim .pop { opacity: 0; transform: translateY(6px); transition: opacity .3s ease var(--d, 0s), transform .45s cubic-bezier(.2, .8, .2, 1) var(--d, 0s); }
+.eq-anim .anim.in .pop { opacity: 1; transform: none; }
+.ac-sum { font-size: 14px; color: var(--ink-2); }
+.ac-sum b { color: var(--ink); font-weight: 500; }
+table.ac td { vertical-align: middle; }
+.ac input, .ac select { font: inherit; font-size: 13.5px; color: var(--ink); background: var(--raise); border: 1px solid var(--rule); border-radius: 8px; padding: 6px 8px; }
+.ac input { width: 120px; text-align: right; font-variant-numeric: tabular-nums; }
+.ac input:focus, .ac select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ac .match-fb { color: var(--c-f-ink); font-weight: 500; } .ac .match-ig { color: var(--c-i-ink); font-weight: 500; }
 @media (max-width: 1080px) {
   .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .span2 { grid-column: 1 / -1; }
   .sc { grid-template-columns: minmax(0, 1fr); gap: 22px; }
   .tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .answers { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .eq-fbcard { grid-column: 1 / -1; }
 }
 @media (max-width: 720px) {
   table.sct th, table.sct td { padding: 10px 6px; }
@@ -1271,6 +1564,15 @@ footer { color: var(--muted); font-size: 13px; display: flex; justify-content: s
   .dr-row { grid-template-columns: minmax(0, 1fr); gap: 0; }
   .ax .dr-l { display: none; }
   .dm { grid-template-columns: minmax(0, 1fr); }
+  .ans { padding: 16px; } .ans > b { font-size: 32px; }
+  .eqn { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; } .eqn-op { display: none; }
+  .eqb-row { grid-template-columns: 64px minmax(0, 1fr) 40px; gap: 8px; } .eqb-l { font-size: 12.5px; }
+  .brk { font-size: 12px; padding-inline: 2px; }
+  .dp-row, .dp-axis { grid-template-columns: minmax(0, 1fr); gap: 8px; } .dp-axis .dp-gap { display: none; }
+  .dp-stat b { display: inline; font-size: 15px; margin-right: 4px; }
+  .c3-grid { grid-template-columns: minmax(0, 1fr); gap: 22px; }
+  .rr { grid-template-columns: minmax(0, 128px) minmax(0, 1fr) 40px; gap: 8px; font-size: 12.5px; }
+  .sg .lg { display: none; } .sg .sm { display: inline; } .sg span { padding: 0 6px; font-size: 11.5px; }
   .gloss { grid-template-columns: minmax(0, 1fr); gap: 2px; } .gloss dd { margin-bottom: 8px; }
   .brand { font-size: 22px; }
   .top-right { width: 100%; justify-content: space-between; flex-wrap: nowrap; }
@@ -1280,6 +1582,7 @@ footer { color: var(--muted); font-size: 13px; display: flex; justify-content: s
   .seg-ctl.theme button span { display: none; }
 }
 @media (min-width: 721px) { .pill.mobile { display: none; } }
+@media (max-width: 520px) { .answers { grid-template-columns: minmax(0, 1fr); } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 """
 
@@ -1329,8 +1632,76 @@ JS = """
         links.forEach(function (a) { a.classList.toggle('on', a.getAttribute('href') === '#' + en.target.id); });
       });
     }, { rootMargin: '-40% 0px -55% 0px' });
-    ['overview', 'findings', 'targets', 'model', 'faq'].forEach(function (id) { var s = document.getElementById(id); if (s) io.observe(s); });
+    ['overview', 'findings', 'equation', 'targets', 'model', 'faq'].forEach(function (id) { var s = document.getElementById(id); if (s) io.observe(s); });
   }
+})();
+
+(function () {
+  // Equation section: bars grow and dots appear once each chart scrolls into view (skipped when the viewer prefers less motion)
+  var sec = document.getElementById('equation');
+  if (!sec || !('IntersectionObserver' in window) || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
+  sec.classList.add('eq-anim');
+  var io = new IntersectionObserver(function (es) {
+    es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+  }, { threshold: 0.15 });
+  sec.querySelectorAll('.anim').forEach(function (c) { io.observe(c); });
+})();
+
+(function () {
+  // Callout 3: shared in-app check list, read from and written to this artifact's database (rows are never in the page source)
+  var box = document.getElementById('appcheck');
+  if (!box || !window.claude || typeof window.claude.use !== 'function') return;
+  var sum = box.querySelector('.ac-sum'), body = box.querySelector('tbody');
+  var fmt = function (n) { return typeof n === 'number' && isFinite(n) ? Math.round(n).toLocaleString('en-US') : ''; };
+  var today = function () { var d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+  function closer(r) {
+    var app = r.app_views, ig = r.nimble, both = r.nimble + r.fb_part;
+    if (typeof app !== 'number' || !(app > 0) || !(ig > 0)) return '';
+    return Math.abs(app / ig - 1) <= Math.abs(app / both - 1) ? 'Instagram only' : 'Instagram + Facebook';
+  }
+  window.claude.use('db').then(function (db) {
+    if (!db) { sum.textContent = 'The check list is not available in this view.'; return; }
+    var col = db.collection('app_checks');
+    col.orderBy('order').onSnapshot(function (snap) {
+      body.textContent = '';
+      var done = 0, both = 0, igOnly = 0;
+      snap.docs.forEach(function (doc) {
+        var r = doc.data() || {}, tr = document.createElement('tr');
+        var td = function (cls) { var c = document.createElement('td'); if (cls) c.className = cls; tr.appendChild(c); return c; };
+        var a = document.createElement('a'), url = String(r.url || '');
+        if (/^https:\\/\\/www\\.instagram\\.com\\/(p|reel|reels)\\/[A-Za-z0-9_-]+\\/?$/.test(url)) { a.href = url; a.target = '_blank'; a.rel = 'noopener'; }
+        a.textContent = 'Post ' + (r.order || '') + (r.published ? ' (' + r.published + ')' : '');
+        td().appendChild(a);
+        td('r').textContent = fmt(r.nimble);
+        td('r').textContent = fmt(r.nimble + r.fb_part);
+        var inp = document.createElement('input'); inp.type = 'number'; inp.min = '0'; inp.inputMode = 'numeric';
+        inp.setAttribute('aria-label', 'Views shown in the app for post ' + (r.order || ''));
+        if (typeof r.app_views === 'number') inp.value = String(r.app_views);
+        inp.addEventListener('change', function () {
+          var v = inp.value === '' ? null : Number(inp.value);
+          if (v !== null && !(v >= 0)) return;
+          col.doc(doc.id).update({ app_views: v, checked_on: v === null ? null : today() }).catch(function () { sum.textContent = 'Could not save. Try again.'; });
+        });
+        td('r').appendChild(inp);
+        var sel = document.createElement('select');
+        [['', '—'], ['Y', 'Yes'], ['N', 'No']].forEach(function (o) { var op = document.createElement('option'); op.value = o[0]; op.textContent = o[1]; sel.appendChild(op); });
+        sel.value = r.cross_posted || '';
+        sel.setAttribute('aria-label', 'Cross-posted to Facebook, post ' + (r.order || ''));
+        sel.addEventListener('change', function () { col.doc(doc.id).update({ cross_posted: sel.value || null }).catch(function () { sum.textContent = 'Could not save. Try again.'; }); });
+        td().appendChild(sel);
+        var c = closer(r), out = td(c === 'Instagram only' ? 'match-ig' : c ? 'match-fb' : '');
+        out.textContent = c;
+        if (c) { done++; if (c === 'Instagram only') igOnly++; else both++; }
+        body.appendChild(tr);
+      });
+      sum.textContent = '';
+      var b = function (s) { var e = document.createElement('b'); e.textContent = s; return e; };
+      if (!snap.size) { sum.textContent = 'No posts in the list yet.'; return; }
+      sum.append(b(done + ' of ' + snap.size), ' checked. ', b(String(both)), ' closer to Instagram + Facebook, ', b(String(igOnly)), ' closer to Instagram only.');
+      var left = document.getElementById('ac-count');
+      if (left) left.textContent = String(snap.size - done);
+    }, function () { sum.textContent = 'The check list could not load in this view.'; });
+  });
 })();
 """
 
@@ -1356,7 +1727,7 @@ def build():
   <div class="top">
     <div class="brand"><span class="mark">{MARK}</span>paid/organic</div>
     <div class="top-right">
-      <nav class="pills" aria-label="Sections"><a class="on" href="#overview">Overview</a><a href="#findings">Findings</a>{'<a href="#targets">Targets</a>' if D["TG"] else ""}<a href="#model">Model</a><a href="#faq">FAQ</a></nav>
+      <nav class="pills" aria-label="Sections"><a class="on" href="#overview">Overview</a><a href="#findings">Findings</a>{'<a href="#equation">Equation</a>' if D.get("EQ") else ""}{'<a href="#targets">Targets</a>' if D["TG"] else ""}<a href="#model">Model</a><a href="#faq">FAQ</a></nav>
       <div class="seg-ctl theme" role="group" aria-label="Color theme"><button type="button" data-theme-btn="light" aria-pressed="true" aria-label="Light mode">{SUN}<span>Light</span></button><button type="button" data-theme-btn="dark" aria-pressed="false" aria-label="Dark mode">{MOON}<span>Dark</span></button></div>
     </div>
   </div>
@@ -1366,6 +1737,7 @@ def build():
   </div>
   {overview(D)}
   {findings(D)}
+  {equation(D)}
   {targets(D)}
   {model(D)}
   {faq(D)}

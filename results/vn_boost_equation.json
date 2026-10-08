@@ -1,0 +1,209 @@
+{
+ "read_rule": "one read per post, at least 2 days after the last ad day",
+ "instagram_side": {
+  "Impressions": {
+   "posts": 146,
+   "median": 0.95890023071731,
+   "q25": 0.9116432299373606,
+   "q75": 0.9902920019850546,
+   "median_abs_gap": 0.0536716732056392,
+   "within_10pct": 0.7465753424657534,
+   "within_25pct": 0.9383561643835616
+  },
+  "Video plays (starts)": {
+   "posts": 146,
+   "median": 0.9112483914050702,
+   "q25": 0.8716901041067293,
+   "q75": 0.9465988292500711,
+   "median_abs_gap": 0.09394260394708326,
+   "within_10pct": 0.5273972602739726,
+   "within_25pct": 0.8493150684931506
+  },
+  "3-second video views": {
+   "posts": 146,
+   "median": 0.3209123072821435,
+   "q25": 0.13435972284003242,
+   "q75": 0.5837385250669642,
+   "median_abs_gap": 0.6790876927178565,
+   "within_10pct": 0.0821917808219178,
+   "within_25pct": 0.136986301369863
+  },
+  "ThruPlays": {
+   "posts": 146,
+   "median": 0.1568536716046664,
+   "q25": 0.03946818051502276,
+   "q75": 0.42614401135540486,
+   "median_abs_gap": 0.8431463283953335,
+   "within_10pct": 0.06164383561643835,
+   "within_25pct": 0.0821917808219178
+  }
+ },
+ "full_platform": {
+  "with paid Facebook video plays": {
+   "posts": 20,
+   "median": 0.9180160864290898,
+   "q25": 0.9015616799439532,
+   "q75": 0.9501102739845603,
+   "median_abs_gap": 0.09093822798040246,
+   "within_10pct": 0.7,
+   "within_25pct": 1.0
+  },
+  "with paid Facebook impressions": {
+   "posts": 20,
+   "median": 1.041007869847112,
+   "q25": 0.9738238769292662,
+   "q75": 1.1265182845267447,
+   "median_abs_gap": 0.05106537291753416,
+   "within_10pct": 0.7,
+   "within_25pct": 0.9
+  }
+ },
+ "socapi": {
+  "posts": 20,
+  "reads_from": "2026-06-08",
+  "reads_to": "2026-10-05",
+  "instagram_plays_over_nimble_median": 1.000019840369996,
+  "total_over_nimble_median": 2.7549588977816413,
+  "facebook_share_of_total_median": 0.6274733828239667,
+  "facebook_only_field_filled": 0
+ },
+ "pooled_full_platform": {
+  "organic": 1050223.0,
+  "paid_instagram_impressions": 11592875.0,
+  "paid_facebook_plays": 22664725.0,
+  "paid_other_plays": 118.0,
+  "socapi_total": 38539359.0,
+  "nimble": 13160514.0
+ },
+ "placements": {
+  "source": "Snowflake EDW Meta ad tables, ads linked to Instagram campaign posts, all dates; run 2026-10-08",
+  "rows": [
+   {
+    "placement": "Facebook",
+    "ads": 1155,
+    "impressions": 649544453,
+    "plays": 243757656
+   },
+   {
+    "placement": "Instagram",
+    "ads": 1169,
+    "impressions": 245842307,
+    "plays": 187935416
+   },
+   {
+    "placement": "Audience Network",
+    "ads": 15,
+    "impressions": 72691,
+    "plays": 65860
+   },
+   {
+    "placement": "Unknown",
+    "ads": 742,
+    "impressions": 21598,
+    "plays": 17654
+   },
+   {
+    "placement": "Messenger",
+    "ads": 4,
+    "impressions": 3592,
+    "plays": 3132
+   }
+  ]
+ },
+ "dots": {
+  "bin_from": 0.5,
+  "bin_width": 0.025,
+  "instagram_side": {
+   "counts": [
+    4,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    2,
+    1,
+    1,
+    7,
+    16,
+    15,
+    23,
+    18,
+    31,
+    8,
+    9,
+    3,
+    2,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    3
+   ],
+   "below_first": 4,
+   "above_last": 3
+  },
+  "full_platform": {
+   "counts": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    4,
+    5,
+    5,
+    3,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "below_first": 0,
+   "above_last": 0
+  }
+ }
+}
