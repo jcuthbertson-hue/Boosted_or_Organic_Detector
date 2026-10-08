@@ -52,24 +52,31 @@ separate organic from paid views where evidence exists). The caveats below must 
   `results/organic_coverage.json`.
 
 ### Model v2 checks (2026-10-08)
-- **Pre-registration:** targets C1-C6 written before any v2 experiment (`docs/IMPROVEMENT_PLAN.md`); three amendments,
-  each logged before the held-out evaluation. All model, feature-set, calibration and threshold choices use train
-  cross-validation grouped by creator (192 candidate runs, `results/model_v2_selection.csv`).
-- **Held-out use:** locked test (posts 2026-07-01 to 09-09) second look; fresh posts (2026-09-10 to 09-24) one look.
-  Results are reported as measured, including the three Instagram misses (C1, C2, C4).
-- **Overfitting:** train in-sample AUC is 1.00 for every v2 model (boosted trees memorise train). Use the train-CV vs test
-  gap instead: TikTok 0.989 -> 0.977; Instagram 0.927 -> 0.876. Client-holdout CV: 0.977 / 0.918.
-- **Calibration:** isotonic calibration (creator-grouped CV on train) for the Instagram models, because their train
-  out-of-fold calibration error was above 0.05 (plan rule). Test calibration error 0.043 (Instagram), 0.023 (TikTok).
-- **Fresh posts are a small sample:** 10 TikTok and 19 Instagram paid posts, so C5 can only say the target is not ruled
-  out (precision intervals 42-92% and 50-92%).
-- **Label audit (Instagram):** missed large boosts look organic on public data and are mostly not confirmed by SocAPI
-  (3 of 26 test, 23 of 56 train). Instagram opt-in "paid" labels need an audit before the model target can be met.
-- **Measured organic:** Instagram posts with no paid evidence and opt-in >= 90% of public views are `ORGANIC_MEASURED`
-  (same cut as the organic training label). The offline run uses the latest mart totals for this ratio; `sql/05` uses
-  the latest read with both values.
-- **Join check:** the v2 Parquet has 41,484 rows, 41,484 unique (post, platform) keys; same keys as the v1 file, which
-  matched BIRA on every sampled key.
+- **Pre-registration:** targets C1-C6 written before any v2 experiment (`docs/IMPROVEMENT_PLAN.md`). Amendments 1-3 were
+  logged before the first held-out evaluation; amendment 4 (frozen opt-in label rule) after it, with the rule chosen on
+  train only. All model, feature-set, calibration and threshold choices use train cross-validation grouped by creator
+  (v2: 192 runs, `results/model_v2_selection.csv`; Instagram v2.1: 72 runs, `results/model_v2_1_selection.csv`).
+- **Held-out use:** locked test (posts 2026-07-01 to 09-09): v1 once, v2 once, then the label fix (third look). Fresh
+  posts (2026-09-10 to 09-24): twice. Every result is reported, including the first, uncorrected one. Next clean test:
+  posts published after 2026-09-24.
+- **Production scorecard** (TikTok v2, Instagram v2.1, corrected labels; `results/model_v2_1_targets.json`): TikTok
+  meets C1-C6. Instagram meets C2, C3, C5, C6; misses C1 by 0.4 points (89.6% vs 90%; 95% interval 83-95%) and C4
+  (day-14 F1 0.80 vs day-30 0.89).
+- **Overfitting:** train in-sample AUC is 1.00 for the boosted-tree models (they memorise train). Use the train-CV vs
+  test gap instead: TikTok day 30 0.989 -> 0.977; Instagram v2.1 day 30 0.959 -> 0.968 (corrected labels).
+- **Calibration:** test calibration error 0.023 (TikTok), 0.026 (Instagram v2.1; no isotonic step needed, train
+  out-of-fold error was under 0.05).
+- **Fresh posts are a small sample:** 10 TikTok and 16 Instagram paid posts, so C5 can only say the target is not ruled
+  out (precision intervals 42-92% and 56-94%).
+- **Label audit (Instagram, frozen opt-in):** the opt-in count stopped updating on 2,177 of 6,030 Instagram posts with
+  opt-in (`results/optin_staleness.json`). Labels whose gap appears only after the freeze were dropped (day 30: 207).
+  Independent check with SocAPI: 11 of 68 dropped test posts show paid plays, vs 60 of 126 kept paid posts and 11 of
+  501 organic posts. So the rule mostly removes wrong labels; about 1 in 6 dropped posts is a real boost (stress test:
+  counting them as paid gives 89.7% for the v2 model).
+- **Measured organic and evidence:** `sql/05` now uses the opt-in ratio from the last read where opt-in still changed.
+  707 Instagram posts lose `MEASURED_OPTIN_GAP` (461 to no evidence, 211 to manual paid date, 35 to SocAPI gap). Stale
+  opt-in is not `ORGANIC_MEASURED`; its organic estimate is opt-in at the freeze x organic curve.
+- **Join check:** the Parquet has 41,484 rows and 41,484 unique (post, platform) keys, the same keys as the v1 file.
 
 ### Required caveats for stakeholders
 - Precision and recall are measured against labels that miss some boosts; treat precision as a lower bound.
@@ -78,5 +85,6 @@ separate organic from paid views where evidence exists). The caveats below must 
 - TikTok organic after a boost is UNVERIFIED: opt-in includes Spark Ad views, so there is no organic truth. The curve
   method is back-tested only on unboosted TikTok posts.
 - Boosts that start before the first public read (12% of boosted Instagram posts, 24% of TikTok) cannot be separated.
-- Instagram model "organic" is not proof: on the locked test it misses 17% of large boosts. A model "paid" is 92% right.
+- Instagram model (v2.1, corrected labels): it misses about 10% of large boosts at day 30 and more at day 14 (F1 0.79);
+  a model "paid" is 94% right. Treat a day-14 Instagram "organic" as provisional until the day-30 score exists.
 - YouTube cannot be reconciled: no ad-to-video link exists in the warehouse.
