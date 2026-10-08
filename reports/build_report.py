@@ -54,7 +54,9 @@ def load():
                 C=j("results/classification_metrics.json"), V=j("results/organic_coverage.json"),
                 W=j("results/weighted_recall.json"), curves=curves,
                 llm=list(csv.DictReader(open("results/llm_vs_ml.csv"))),
-                paired=list(csv.DictReader(open("results/llm_vs_ml_paired_auc.csv"))))
+                paired=list(csv.DictReader(open("results/llm_vs_ml_paired_auc.csv"))),
+                C2=j("results/classification_metrics_v2.json") if os.path.exists("results/classification_metrics_v2.json") else None,
+                TG=j("results/model_v2_targets.json") if os.path.exists("results/model_v2_targets.json") else None)
 
 
 # ---------------------------------------------------------------- small components
@@ -378,8 +380,60 @@ def findings(D):
             f'<article class="card"><div class="card-head"><h3>What would make it better</h3></div><ul class="finds next">{nx}</ul></article></section>')
 
 
+def targets(D):
+    """Model v2 against the targets written before the test (docs/IMPROVEMENT_PLAN.md)."""
+    TG, C2, C = D["TG"], D["C2"], D["C"]
+    if not (TG and C2):
+        return ""
+    T = TG["targets"]
+    ok = lambda b: '<span class="pill ok">met</span>' if b else '<span class="pill warn">missed</span>'
+    pfv = lambda k, f: [f(T[k][p]) for p, _ in PLATFORMS]
+    c4 = T["C4"]
+    c6 = T["C6"]["posts"]
+    rows = [
+        ["Large boosts caught at 90%+ precision"] + pfv("C1", lambda v: f'{pct(v["material_recall"])} caught, {pct(v["precision"])} precise {ok(v["pass"])}'),
+        ["F1 (Instagram 0.80, TikTok 0.93)"] + pfv("C2", lambda v: f'{f2(v["f1"])} {ok(v["pass"])}'),
+        ["Calibration error 0.05 or less"] + pfv("C3", lambda v: f'{f3(v["ece"])} {ok(v["pass"])}'),
+        ["Fresh posts (Sep 10–24), day-14 model"] + pfv("C5", lambda v: (f'{pct(v["material_recall"])} caught, {pct(v["precision"])} precise {ok(v["pass"])}'
+                                                                      if "precision" in v else f'no labels {ok(False)}')),
+        ["Day-14 F1 within 0.05 of day 30"] + [f'{f2(c4["same_posts"][p]["f1_day14"])} vs {f2(c4["same_posts"][p]["f1_day30"])} '
+                                               f'{ok(c4["same_posts"][p]["gap"] <= 0.05)}' for p, _ in PLATFORMS],
+    ]
+    lst = '<div class="tgts">' + "".join(
+        f'<div class="tgt"><div class="tgt-name">{esc(r[0])}</div>'
+        + "".join(f'<div class="tgt-v"><span class="tgt-pf">{lab}</span><span>{v}</span></div>' for (p, lab), v in zip(PLATFORMS, r[1:]))
+        + "</div>" for r in rows) + "</div>"
+    score = card("Did v2 reach its targets?",
+                 lst + f'<p class="mini">Coverage: {pct(c4["coverage"]["all"])} of posts tracked by day 7 get a score {ok(c4["coverage"]["all"] >= 0.85)}. '
+                       f'Tagged paid posts flagged: {sum(x["flagged"] for x in c6)} of {len(c6)} {ok(T["C6"]["pass"])}.</p>',
+                 cls="span2", sub="Locked test (posts published 2026-07-01 to 09-09) and fresh posts, each scored once",
+                 tip="Large boost = opt-in shows 40% or more paid, or an ad link or post-ID tag inside the model window (all TikTok boosts). Targets and rules: docs/IMPROVEMENT_PLAN.md.",
+                 data=table(["Target", "Platform", "Value", "95% interval"],
+                            [[k, lab, f3(T[k][p].get("material_recall", T[k][p].get("f1", T[k][p].get("ece", float("nan"))))),
+                              "–".join(f3(x) for x in T[k][p]["ci95"]["material_recall"]) if isinstance(T[k][p].get("ci95"), dict) else
+                              ("–".join(f3(x) for x in T[k][p]["ci95"]) if isinstance(T[k][p].get("ci95"), list) else "")]
+                             for k in ("C1", "C2", "C3", "C5") for p, lab in PLATFORMS if p in T[k]]))
+    vv = C2["v1_vs_v2"]
+    bars = progress([(f"{lab} {v}", vv[p]["f1"][v], "solid" if v == "v2" else "hatch-n", f"{lab}, model {v}: F1 {vv[p]['f1'][v]:.3f} on the locked test")
+                     for p, lab in PLATFORMS for v in ("v1", "v2")], fmt=f2)
+    comp = card("v1 → v2", bars, sub="F1 on the locked test",
+                tip="v2 uses more public reads (views and likes at many ages, the creator's own norms) and adds post-ID tags to the labels, so the label sets differ a little.",
+                data=table(["Platform", "Metric", "v1", "v2"],
+                           [[lab, k.replace("_", " "), f3(vv[p][k]["v1"]), f3(vv[p][k]["v2"])] for p, lab in PLATFORMS for k in ("roc_auc", "pr_auc", "precision", "recall", "f1", "ece")]))
+    hz = []
+    for blk, name in (("day14", "Day 14"), ("platforms", "Day 30"), ("day60", "Day 60")):
+        for p, lab in PLATFORMS:
+            if p in C2.get(blk, {}):
+                t = C2[blk][p]["test_metrics"]
+                hz.append([f"{name}, {lab}", f'{t["n"]:,} ({t["n_pos"]})', f2(t["precision"]), f2(t["recall"]), f2(t["f1"])])
+    horiz = card("Score early, check later", table(["Model", "Posts (paid)", "Precision", "Recall", "F1"], hz), cls="span3",
+                 sub="A post gets the longest model its data allows",
+                 tip="Day 14: from 14 days of public data. Day 30: from 28 days. Day 60: from 55 days; it sees boosts that start late. Day 60 was added after the targets were set, so it has no target.")
+    return f'<section id="targets" class="grid">{score}{comp}{horiz}</section>'
+
+
 def model(D):
-    C, W = D["C"], D["W"]
+    C, W = D["C2"] or D["C"], D["W"]
     P = C["platforms"]
     seg = ('<div class="seg-ctl" role="group" aria-label="Platform">' + "".join(
         f'<button type="button" data-pf-btn="{p}" aria-pressed="{"true" if p == DEFAULT_PF else "false"}">{lab}</button>' for p, lab in PLATFORMS) + "</div>")
@@ -450,7 +504,19 @@ def model(D):
     names = {"late_share_d7": "Views gained after day 7", "front_load_d1": "Views already there on day 1", "log_views30": "Views at day 30",
              "log_accel_gap": "View jump minus like jump", "log_er30": "Engagement rate", "log_vtf30": "Views ÷ followers",
              "late_share_d14": "Views gained after day 14", "lpv_dilution": "Likes per view, early vs late", "log_accel": "Biggest daily view jump",
-             "comments_per_like": "Comments per like", "log_followers": "Followers"}
+             "comments_per_like": "Comments per like", "log_followers": "Followers",
+             "log_views": "Views at the horizon", "log_vtf": "Views ÷ followers", "er": "Engagement rate", "like_dilution": "Likes per view, early vs late",
+             "creator_rel_reach": "Views vs the creator's earlier posts", "creator_rel_lpv": "Likes per view vs the creator's norm",
+             "creator_rel_vtf": "Reach vs the creator's norm", "creator_rel_share_v3": "Day-3 share vs the creator's norm",
+             "creator_prior_posts": "Creator's earlier posts", "jump_lpv_ratio": "Likes per new view in the biggest jump",
+             "min_new_lpv_ratio": "Lowest likes per new view", "jump_lpv": "Likes per new view in the biggest jump", "jump_age": "Day of the biggest jump",
+             "late_new_lpv_ratio": "Likes per new view after day 21", "jump_late_vs_early": "Late jump vs early jump",
+             "shares_per_view": "Shares per view", "share_v25": "Share of views by day 25", "share_v28": "Share of views by day 28"}
+    for a in (1, 2, 3, 5, 7, 10, 14, 21, 30, 45):
+        names.setdefault(f"share_v{a}", f"Share of views by day {a}")
+        names.setdefault(f"lpv{a}", f"Likes per view, day {a}")
+    for k in ("r7", "r14", "r30", "r60"):
+        names.setdefault(f"jump_{k}", f"Biggest daily jump, days {dict(r7='2–7', r14='8–14', r30='15–30', r60='31–60')[k]}")
 
     def inputs(p, lab):
         top = list(P[p]["permutation_importance_test_pr_auc"].items())[:5]
@@ -496,10 +562,15 @@ def model(D):
         card("What the model looks at", both(inputs), sub="Top 5 inputs, public data only. Top input = 100%.",
              tip="Importance = drop in test PR AUC when the input is shuffled. No paid date, ad, spend, opt-in or SocAPI field is an input."),
     ]
-    note = (f'<p class="note">Instagram misses are mostly small boosts: flagged posts hold {pct(W["Instagram"]["paid_view_weighted_recall"], 1)} of paid views on opt-in posts.'
-            f'{info("Weighted by paid views measured with opt-in, 186 test posts.")}</p>')
+    if D["C2"]:
+        mr = P["Instagram"]["material"]
+        note = (f'<p class="note">Instagram large boosts (40%+ paid, or an ad link) caught: {pct(mr["test_material_recall"], 1)} of {mr["test_material_posts"]} test posts.'
+                f'{info("Day-30 model, locked test. Large = opt-in shows 40% or more of public views are paid, or an ad link or post-ID tag with the boost inside the window.")}</p>')
+    else:
+        note = (f'<p class="note">Instagram misses are mostly small boosts: flagged posts hold {pct(W["Instagram"]["paid_view_weighted_recall"], 1)} of paid views on opt-in posts.'
+                f'{info("Weighted by paid views measured with opt-in, 186 test posts.")}</p>')
     return (f'<section id="model" class="block"><div class="block-head"><div><h2>Paid-post model</h2>'
-            f'<p class="card-sub">Only for posts with no paid record. Locked test of later posts.</p></div>{seg}</div>'
+            f'<p class="card-sub">{"Day-30 model v2. " if D["C2"] else ""}Only for posts with no paid record. Locked test of later posts.</p></div>{seg}</div>'
             f'{pf_panels(tiles)}<div class="grid">{"".join(cards)}</div>{note}</section>')
 
 
@@ -630,7 +701,7 @@ CSS = """
 }
 * { box-sizing: border-box; }
 body { background: var(--backdrop); color: var(--ink); font-family: var(--font); font-size: 15px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
-.shell { max-width: 1280px; margin: 0 auto; background: var(--shell); border-radius: 40px; padding-inline: 40px; padding-block: 28px 48px; display: grid; gap: 28px; }
+.shell { max-width: 1280px; margin: 0 auto; background: var(--shell); border-radius: 40px; padding-inline: 40px; padding-block: 28px 48px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 28px; }
 .page-wrap { padding-inline: 16px; padding-block: 16px; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
 h1, h2, h3 { margin: 0; font-weight: 500; letter-spacing: -.02em; text-wrap: balance; }
@@ -710,6 +781,12 @@ details.more[open] > summary { background: var(--nav-on); color: var(--nav-on-in
 .big { font-size: clamp(56px, 7vw, 84px); line-height: .95; letter-spacing: -.05em; font-weight: 500; }
 .big.sm { font-size: clamp(44px, 5vw, 60px); }
 .big-sub { color: var(--muted); font-size: 13.5px; margin-top: -6px; }
+.tgts { display: grid; gap: 0; }
+.tgt { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: baseline; padding: 11px 0; border-bottom: 1px solid var(--rule-2); font-size: 14px; }
+.tgt:last-child { border-bottom: 0; }
+.tgt-name { color: var(--ink-2); }
+.tgt-v { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; font-variant-numeric: tabular-nums; }
+.tgt-pf { color: var(--faint); font-size: 12px; min-width: 64px; }
 .mini { font-size: 12.5px; color: var(--muted); border-top: 1px solid var(--rule); padding-top: 14px; }
 .pbars { display: grid; gap: 14px; }
 .pb { display: grid; gap: 6px; }
@@ -757,6 +834,8 @@ details.more[open] > summary { background: var(--nav-on); color: var(--nav-on-in
 .finds li:nth-child(3) .n { background: var(--accent); color: #ffffff; }
 .finds .chk { color: var(--muted); font-size: 16px; text-align: center; }
 .caveat { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; background: var(--warn-bg); border-radius: 16px; padding: 12px 14px; font-size: 14.5px; }
+.pill.ok { background: transparent; border-color: color-mix(in srgb, var(--accent) 40%, transparent); color: var(--accent-ink); box-shadow: none; padding: 1px 8px; font-weight: 500; font-size: 12px; }
+td .pill.warn { padding: 1px 8px; font-size: 12px; }
 .pill.warn { background: transparent; border-color: color-mix(in srgb, var(--warn) 40%, transparent); color: var(--warn); box-shadow: none; padding: 3px 10px; font-weight: 500; }
 /* model block */
 .block { display: grid; gap: 18px; }
@@ -829,6 +908,7 @@ footer { color: var(--muted); font-size: 13px; display: flex; justify-content: s
   .tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 720px) {
+  .tgt { grid-template-columns: minmax(0, 1fr); gap: 4px; }
   .page-wrap { padding: 8px; }
   .shell { border-radius: 26px; padding-inline: 16px; padding-block: 18px 32px; gap: 22px; }
   .grid { grid-template-columns: minmax(0, 1fr); gap: 14px; }
@@ -846,7 +926,10 @@ footer { color: var(--muted); font-size: 13px; display: flex; justify-content: s
   .ax .dr-l { display: none; }
   .dm { grid-template-columns: minmax(0, 1fr); }
   .brand { font-size: 22px; }
-  .top-right { width: 100%; justify-content: space-between; }
+  .top-right { width: 100%; justify-content: space-between; flex-wrap: nowrap; }
+  .top { min-width: 0; width: 100%; }
+  nav.pills { min-width: 0; flex: 1 1 0; }
+  nav.pills a { padding: 8px 11px; font-size: 14px; }
   .seg-ctl.theme button span { display: none; }
 }
 @media (min-width: 721px) { .pill.mobile { display: none; } }
@@ -899,7 +982,7 @@ JS = """
         links.forEach(function (a) { a.classList.toggle('on', a.getAttribute('href') === '#' + en.target.id); });
       });
     }, { rootMargin: '-40% 0px -55% 0px' });
-    ['overview', 'findings', 'model', 'faq'].forEach(function (id) { var s = document.getElementById(id); if (s) io.observe(s); });
+    ['overview', 'findings', 'targets', 'model', 'faq'].forEach(function (id) { var s = document.getElementById(id); if (s) io.observe(s); });
   }
 })();
 """
@@ -925,7 +1008,7 @@ def build():
   <div class="top">
     <div class="brand"><span class="mark">{MARK}</span>paid/organic</div>
     <div class="top-right">
-      <nav class="pills" aria-label="Sections"><a class="on" href="#overview">Overview</a><a href="#findings">Findings</a><a href="#model">Model</a><a href="#faq">FAQ</a></nav>
+      <nav class="pills" aria-label="Sections"><a class="on" href="#overview">Overview</a><a href="#findings">Findings</a>{'<a href="#targets">Targets</a>' if D["TG"] else ""}<a href="#model">Model</a><a href="#faq">FAQ</a></nav>
       <div class="seg-ctl theme" role="group" aria-label="Color theme"><button type="button" data-theme-btn="light" aria-pressed="true" aria-label="Light mode">{SUN}<span>Light</span></button><button type="button" data-theme-btn="dark" aria-pressed="false" aria-label="Dark mode">{MOON}<span>Dark</span></button></div>
     </div>
   </div>
@@ -935,6 +1018,7 @@ def build():
   </div>
   {overview(D)}
   {findings(D)}
+  {targets(D)}
   {model(D)}
   {faq(D)}
   <footer><span>Aggregates only. Data read 2026-10-07. Typical = median.</span><a href="{REPO}">Code and SQL on GitHub</a></footer>
