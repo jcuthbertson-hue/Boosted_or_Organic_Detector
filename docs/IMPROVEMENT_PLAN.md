@@ -42,3 +42,11 @@ Untracked posts are reported separately as a data gap, not a model result.
 
 Threshold rule (fixed now): on train out-of-fold scores, take the threshold with the highest F1 among thresholds whose
 out-of-fold precision is at least 0.90; if none reaches 0.90, take the max-F1 threshold.
+
+## Amendment 2 (2026-10-08, during train-only development, before any held-out evaluation)
+
+- Feature sets compared on train CV: `base` (public curve, jump, like and engagement features up to day H) and
+  `base+creator` (adds the post's day-H views vs the median of the same creator's earlier posts; public data only).
+  Model family, settings and feature set are all picked by highest train CV PR AUC.
+- Calibration rule: if the picked model's train out-of-fold ECE is above 0.05, wrap it in isotonic calibration fitted
+  with creator-grouped 5-fold CV on train, and pick the threshold on the calibrated out-of-fold scores.
