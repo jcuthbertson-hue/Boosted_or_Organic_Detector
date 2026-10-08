@@ -1,0 +1,80 @@
+{
+ "paid_from_organic_estimate": {
+  "read_rule": "latest read at least 2 days after the last ad day; pre-boost read = latest read before the first spend day",
+  "paid_share_median": 0.9336558300983646,
+  "public_minus_organic_estimate": {
+   "posts": 117,
+   "median_abs_error": 0.010495733688789397,
+   "within_10pct": 0.7692307692307693,
+   "within_25pct": 0.8547008547008547
+  },
+  "paid_instagram_impressions": {
+   "posts": 117,
+   "median_abs_error": 0.07939951863108519,
+   "within_10pct": 0.5811965811965812,
+   "within_25pct": 0.8376068376068376
+  },
+  "organic_estimate": {
+   "posts": 117,
+   "median_abs_error": 0.11532084189298568,
+   "within_10pct": 0.46153846153846156,
+   "within_25pct": 0.7692307692307693
+  }
+ },
+ "facebook_factor": {
+  "k_median_all_posts": 1.0953206432434128,
+  "reads_from": "2026-06-08",
+  "reads_to": "2026-10-05",
+  "total_from_nimble_plus_k_fb_plays": {
+   "posts": 20,
+   "median_abs_error": 0.007749732795689206,
+   "within_10pct": 1.0,
+   "within_25pct": 1.0
+  },
+  "total_from_nimble_plus_fb_plays_no_factor": {
+   "posts": 20,
+   "median_abs_error": 0.0614955625802985,
+   "within_10pct": 0.9,
+   "within_25pct": 1.0
+  },
+  "equation_with_factor": {
+   "posts": 20,
+   "median": 0.9720522793292066,
+   "within_10pct": 0.95,
+   "within_25pct": 1.0
+  }
+ },
+ "coverage": {
+  "source": "paid_classification_2026-10-07 (daily table, aggregates only)",
+  "Instagram": {
+   "posts": 23552,
+   "boosted_by_record": 2488,
+   "boosted_by_model": 624,
+   "not_scored": 6478,
+   "organic_from": {
+    "creator_data": 1711,
+    "estimated_preboost": 498,
+    "missing": 903
+   },
+   "missing_by_reason": {
+    "model_flag_no_start_date": 551,
+    "boosted_before_first_read": 352
+   }
+  },
+  "Tiktok": {
+   "posts": 17932,
+   "boosted_by_record": 1093,
+   "boosted_by_model": 784,
+   "not_scored": 4526,
+   "organic_from": {
+    "creator_data": 0,
+    "estimated_preboost": 826,
+    "missing": 1051
+   },
+   "missing_by_reason": {
+    "model_flag_no_start_date": 784,
+    "boosted_before_first_read": 267
+   }
+  }
+ }
+}
