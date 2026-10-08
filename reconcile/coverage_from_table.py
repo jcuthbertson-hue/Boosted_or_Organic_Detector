@@ -6,7 +6,8 @@ posts use opt-in until it froze, then the organic curve. Scope: every post in th
 
 Input : outputs/paid_classification_<date>.parquet (pipeline/run_daily.py output; row level, git-ignored)
 Output: results/organic_coverage.json
-Run   : python3 -m reconcile.coverage_from_table outputs/paid_classification_2026-10-07.parquet
+Run   : python3 -m reconcile.coverage_from_table outputs/paid_classification_2026-10-08.parquet
+est_* counts both pre-boost reads: known start date and start found from the view jump (est_view_jump says how many).
 """
 import json
 import sys
@@ -21,7 +22,8 @@ def category(method, conf):
         return "measured_optin"
     if method == "opt-in until it stopped updating, then organic curve":
         return "optin_frozen"
-    if method == "pre-boost public read x organic curve" and conf in ("high", "medium", "low"):
+    if method in ("pre-boost public read x organic curve", "pre-boost read found from the view jump x organic curve") \
+            and conf in ("high", "medium", "low"):
         return f"est_{conf}"
     if str(method).startswith("not separable"):
         return "not_separable"
@@ -36,15 +38,16 @@ def main(path):
     by_ev = []
     for (pf, ev), g in paid.groupby(["POST_PLATFORM", "BOOST_EVIDENCE"]):
         n = g.cat.value_counts()
-        by_ev.append({"platform": pf, "evidence": ev, "posts": int(len(g)), **{c: int(n.get(c, 0)) for c in CATS}})
+        by_ev.append({"platform": pf, "evidence": ev, "posts": int(len(g)), **{c: int(n.get(c, 0)) for c in CATS},
+                      "est_view_jump": int((g.ORGANIC_VIEWS_METHOD == "pre-boost read found from the view jump x organic curve").sum())})
     totals = {}
     for pf, g in paid.groupby("POST_PLATFORM"):
         n = g.cat.value_counts()
         totals[pf] = {"posts": int(len(g)), **{c: int(n.get(c, 0)) for c in CATS}}
-    tiers = {"source": f"daily paid table, data read {run}"}
+    tiers = {"source": f"daily paid table, run date {run}"}
     for pf, g in d.groupby("POST_PLATFORM"):
         tiers[pf] = {k: int(v) for k, v in g.BOOST_EVIDENCE.value_counts().items()}
-    out = {"source": f"pipeline/run_daily.py output ({path.rsplit('/', 1)[-1]}), data read {run}; sql/05 with the frozen opt-in fix",
+    out = {"source": f"pipeline/run_daily.py output ({path.rsplit('/', 1)[-1]}), run date {run}; sql/05 with the frozen opt-in fix; view-jump start for posts with no start date",
            "scope": "all in-feed Instagram / TikTok campaign posts in the daily table with any paid evidence (all publish dates)",
            "rule": "measured_optin = Instagram opt-in views that kept updating; optin_frozen = opt-in until it stopped updating, then "
                    "the organic curve; est_* = pre-boost public read x organic curve, confidence by age of the pre-boost read "

@@ -1,5 +1,5 @@
 {
- "source": "pipeline/run_daily.py output (paid_classification_2026-10-07.parquet), data read 2026-10-07; sql/05 with the frozen opt-in fix",
+ "source": "pipeline/run_daily.py output (paid_classification_2026-10-08.parquet), run date 2026-10-08; sql/05 with the frozen opt-in fix; view-jump start for posts with no start date",
  "scope": "all in-feed Instagram / TikTok campaign posts in the daily table with any paid evidence (all publish dates)",
  "rule": "measured_optin = Instagram opt-in views that kept updating; optin_frozen = opt-in until it stopped updating, then the organic curve; est_* = pre-boost public read x organic curve, confidence by age of the pre-boost read (high >= day 14, medium day 7-13, low < day 7); not_separable = no public read before the boost start",
  "by_evidence": [
@@ -12,7 +12,8 @@
    "est_high": 6,
    "est_medium": 7,
    "est_low": 20,
-   "not_separable": 49
+   "not_separable": 49,
+   "est_view_jump": 0
   },
   {
    "platform": "Instagram",
@@ -23,7 +24,8 @@
    "est_high": 0,
    "est_medium": 1,
    "est_low": 4,
-   "not_separable": 1
+   "not_separable": 1,
+   "est_view_jump": 0
   },
   {
    "platform": "Instagram",
@@ -34,7 +36,8 @@
    "est_high": 227,
    "est_medium": 46,
    "est_low": 67,
-   "not_separable": 106
+   "not_separable": 106,
+   "est_view_jump": 0
   },
   {
    "platform": "Instagram",
@@ -45,7 +48,8 @@
    "est_high": 0,
    "est_medium": 0,
    "est_low": 0,
-   "not_separable": 0
+   "not_separable": 0,
+   "est_view_jump": 0
   },
   {
    "platform": "Instagram",
@@ -53,10 +57,11 @@
    "posts": 380,
    "measured_optin": 23,
    "optin_frozen": 41,
-   "est_high": 42,
-   "est_medium": 31,
-   "est_low": 47,
-   "not_separable": 196
+   "est_high": 93,
+   "est_medium": 69,
+   "est_low": 66,
+   "not_separable": 88,
+   "est_view_jump": 108
   },
   {
    "platform": "Tiktok",
@@ -67,7 +72,8 @@
    "est_high": 218,
    "est_medium": 140,
    "est_low": 224,
-   "not_separable": 220
+   "not_separable": 220,
+   "est_view_jump": 0
   },
   {
    "platform": "Tiktok",
@@ -78,7 +84,8 @@
    "est_high": 3,
    "est_medium": 0,
    "est_low": 0,
-   "not_separable": 0
+   "not_separable": 0,
+   "est_view_jump": 0
   },
   {
    "platform": "Tiktok",
@@ -89,7 +96,8 @@
    "est_high": 73,
    "est_medium": 58,
    "est_low": 110,
-   "not_separable": 47
+   "not_separable": 47,
+   "est_view_jump": 0
   }
  ],
  "totals": {
@@ -97,10 +105,10 @@
    "posts": 2488,
    "measured_optin": 869,
    "optin_frozen": 769,
-   "est_high": 275,
-   "est_medium": 85,
-   "est_low": 138,
-   "not_separable": 352
+   "est_high": 326,
+   "est_medium": 123,
+   "est_low": 157,
+   "not_separable": 244
   },
   "Tiktok": {
    "posts": 1093,
@@ -113,7 +121,7 @@
   }
  },
  "evidence_tiers_all_posts": {
-  "source": "daily paid table, data read 2026-10-07",
+  "source": "daily paid table, run date 2026-10-08",
   "Instagram": {
    "NO_PAID_EVIDENCE": 21064,
    "MEASURED_OPTIN_GAP": 1031,

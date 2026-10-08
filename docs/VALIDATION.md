@@ -106,6 +106,22 @@ separate organic from paid views where evidence exists). The caveats below must 
   11% of posts with evidence). The daily table gives those posts their status from the evidence, never from the model.
 - **Join check:** the Parquet has 41,484 rows and 41,484 unique (post, platform) keys, the same keys as the v1 file.
 
+### View-jump boost start (2026-10-08)
+
+- **Question:** can we find when a boost started from the daily public views, for boosted posts with no start date?
+- **Data:** daily public views (`sql/15`, pulled 2026-10-08) for 3,890 boosted posts and two organic samples (Instagram opt-in
+  organic only; TikTok model score < 0.05). Truth: ad-log first spend dates (start), opt-in (Instagram organic).
+- **Protocol:** posts split in half by a hash of the key; settings chosen on one half (6 + 4 settings tried); the other half
+  scored once. Material change after the first try: the "jump >= 5% of final views" rule hid the start of slowly rising flights
+  (the method picked a later jump); replaced by >= 0.2%. Second change: a first jump before day 3 is not used (organic early
+  spikes; 57% error from day 0-2 reads on the tuning half).
+- **Held-out result:** Instagram organic 13.5% median error vs opt-in (242 posts; known-date method 11.5%);
+  paid 0.3%; TikTok within 1.6% of the known-date estimate (340 posts);
+  false alarms 3% (Instagram) and 7% (TikTok).
+- **Caveats:** about 1 in 5 TikTok starts picked is late (the read already holds > 5% paid views), which pushes organic up for
+  those posts. The Instagram ad-log start set is small (64 held-out posts). TikTok organic after a boost is still not testable.
+  A one-read upward glitch in public views can look like a boost (views are made non-decreasing, so a dip cannot).
+
 ### Required caveats for stakeholders
 - Precision and recall are measured against labels that miss some boosts; treat precision as a lower bound.
 - Do not use "public - paid metric" per post. Use opt-in when it exists, else the pre-boost read x organic curve.

@@ -5,7 +5,8 @@ Steps
   1. sql/05_boost_flags.sql                 evidence tier + organic-estimate inputs, every IG / TikTok campaign post
   2. sql/02_detector_features_and_labels.sql 30-day public features (posts with >= 28 days of data)
   3. model score for NO_PAID_EVIDENCE posts  (models/boost_detector_<platform>.joblib from detector/train_eval.py)
-  4. organic estimate                       (reconcile/estimate.py)
+  4. organic estimate                       (reconcile/estimate.py); posts with no start date get their pre-boost read
+                                            from the jump in the daily public views (sql/15 + reconcile/boost_start.py)
   5. PAID_STATUS, then stage + MERGE into {{TARGET_SCHEMA}}.PAID_CLASSIFICATION__POST (sql/09)
 
 Offline (default): read step 1 and 2 outputs from files, write outputs/paid_classification_<date>.csv (git-ignored).
@@ -24,7 +25,8 @@ import numpy as np
 import pandas as pd
 
 from detector.features import COLS, FEATURES, build, load
-from reconcile.estimate import estimate
+from reconcile.boost_start import detect_all, load_series
+from reconcile.estimate import estimate, load_curves
 
 STATUS = {"CONFIRMED_PAID_TAG": "PAID_CONFIRMED", "CONFIRMED_AD_LINK": "PAID_CONFIRMED",
           "MEASURED_OPTIN_GAP": "PAID_MEASURED", "MEASURED_SOCAPI_GAP": "PAID_MEASURED",
@@ -111,7 +113,7 @@ def add_model_note_v2(d, raw):
     return d
 
 
-def classify(flags, scores, run_date):
+def classify(flags, scores, run_date, series=None):
     known = set(STATUS) | {"NO_PAID_EVIDENCE"}
     bad = ~flags.boost_evidence.isin(known)
     if bad.any():
@@ -136,9 +138,23 @@ def classify(flags, scores, run_date):
                                 ["evidence", "model"], None)
     d["is_paid"] = d.paid_status.map(lambda s: None if s == "NOT_SCORED" else s in PAID)
     d["boosted"] = d.paid_status.isin(PAID)
+    no_start = d.boosted & (d["boost_start"].isna() if "boost_start" in d else True)
+    if series is not None:      # pre-boost read from the view jump, only for boosted posts with no known start date
+        s = series.merge(d.loc[no_start, ["psrk", "platform"]], on=["psrk", "platform"])
+        found = detect_all(s, load_curves())
+        d = d.merge(found, on=["psrk", "platform"], how="left", validate="one_to_one")
+        d.loc[no_start & d.detect_note.isna(), "detect_note"] = "no public reads in the first 90 days"
     e = estimate(d)
     d = pd.concat([d.reset_index(drop=True), e], axis=1)
     d.loc[d.paid_status == "NOT_SCORED", "organic_views_method"] = "public views (no paid record; model could not score)"
+    jump = d.organic_views_method == "pre-boost read found from the view jump x organic curve"
+    d["preboost_source"] = np.select([d.organic_views_method == "pre-boost public read x organic curve", jump],
+                                     ["known start date", "view jump"], None)
+    if jump.any():              # the pre-boost read used, and the earliest day the boost can have started
+        d.loc[jump, "views_before_first_spend"] = d.views_preboost_detected[jump]
+        d.loc[jump, "preboost_age_days"] = d.preboost_age_detected[jump]
+        d.loc[jump, "boost_start_detected"] = (pd.to_datetime(d.pub[jump])
+                                               + pd.to_timedelta(d.preboost_age_detected[jump] + 1, unit="D"))
     d["paid_views_on_platform_est"] = (d.views_public_latest - d.organic_views_est).where(d.boosted).clip(lower=0)
     if "model_version" in d:            # v2 scoring names the model per post
         d["model_version"] = d.model_version.where(d.model_score.notna(), None)
@@ -153,13 +169,13 @@ OUT_COLS = {  # table column -> frame column
     "POST_SCRAPER_REFERENCE_KEY": "psrk", "POST_PLATFORM": "platform", "POST_TYPE": "post_type", "POST_URL": "post_url",
     "POST_PUBLISHED_DATE": "pub", "PAID_STATUS": "paid_status", "BOOST_EVIDENCE": "boost_evidence",
     "IS_PAID": "is_paid", "PAID_BASIS": "paid_basis",
-    "BOOST_START_DATE": "boost_start", "FIRST_SPEND_DATE": "first_spend", "AD_SPEND": "spend",
+    "BOOST_START_DATE": "boost_start", "BOOST_START_DETECTED_DATE": "boost_start_detected", "FIRST_SPEND_DATE": "first_spend", "AD_SPEND": "spend",
     "PAID_IMPRESSIONS_IG": "paid_impressions_ig", "PAID_IMPRESSIONS_FB": "paid_impressions_fb",
     "PAID_PLAYS_IG": "paid_plays_ig", "PAID_PLAYS_FB": "paid_plays_fb",
     "MODEL_SCORE": "model_score", "MODEL_THRESHOLD": "model_threshold", "MODEL_HORIZON_DAYS": "model_horizon",
     "MODEL_VERSION": "model_version", "MODEL_NOTE": "model_note",
     "VIEWS_PUBLIC_LATEST": "views_public_latest", "VIEWS_OPTIN_LATEST": "views_private_latest",
-    "VIEWS_PUBLIC_PREBOOST": "views_before_first_spend", "PREBOOST_AGE_DAYS": "preboost_age_days",
+    "VIEWS_PUBLIC_PREBOOST": "views_before_first_spend", "PREBOOST_AGE_DAYS": "preboost_age_days", "PREBOOST_SOURCE": "preboost_source",
     "POST_AGE_DAYS": "age_latest", "ORGANIC_VIEWS_EST": "organic_views_est", "ORGANIC_VIEWS_METHOD": "organic_views_method",
     "ORGANIC_VIEWS_CONFIDENCE": "organic_views_confidence", "PAID_VIEWS_ON_PLATFORM_EST": "paid_views_on_platform_est",
     "RUN_DATE": "run_date", "UPDATED_AT": "updated_at"}
@@ -184,7 +200,7 @@ def to_table(d):
 
 def write_parquet(table, path):
     t = table.copy()
-    for c in ["POST_PUBLISHED_DATE", "BOOST_START_DATE", "FIRST_SPEND_DATE", "RUN_DATE"]:
+    for c in ["POST_PUBLISHED_DATE", "BOOST_START_DATE", "BOOST_START_DETECTED_DATE", "FIRST_SPEND_DATE", "RUN_DATE"]:
         t[c] = pd.to_datetime(t[c], errors="coerce").dt.date
     t["IS_PAID"] = t["IS_PAID"].astype("boolean")
     for c in ["PAID_IMPRESSIONS_IG", "PAID_IMPRESSIONS_FB", "PAID_PLAYS_IG", "PAID_PLAYS_FB", "VIEWS_PUBLIC_LATEST", "VIEWS_OPTIN_LATEST",
@@ -274,6 +290,8 @@ def main():
     ap.add_argument("--target-schema", default=None, help="DB.SCHEMA to MERGE into; omit to write CSV only")
     ap.add_argument("--run-date", default=str(dt.date.today()))
     ap.add_argument("--parquet", default=None, help="also write the table to this Parquet file (needs pyarrow)")
+    ap.add_argument("--series", default="data/view_series.psv",
+                    help="offline: sql/15 output (daily public views); missing file = no view-jump step")
     a = ap.parse_args()
 
     if a.snowflake:
@@ -295,20 +313,27 @@ def main():
                     tmp.write("\n".join(q.s.astype(str)) + "\n")
                 paths[name] = tmp.name
             a.features_v2, a.features_v2_extra, a.features_v2_followers = paths["raw"], paths["extra"], paths["followers"]
+        q = query(conn, "sql/15_view_series.sql").sort_values("rn")     # same one-string-per-post format
+        with tempfile.NamedTemporaryFile("w", suffix=".psv", delete=False) as tmp:
+            tmp.write("\n".join(q.s.astype(str)) + "\n")
+        a.series = tmp.name
     else:
         conn = None
         flags = read_flags(a.flags, a.optin_live, a.tier_changes)
         if a.model == "v1":
             features = build(load(a.features))
 
+    series = load_series(a.series) if a.series and os.path.exists(a.series) else None
+    if series is None:
+        print("no view series: posts with no start date stay not separable")
     if a.model == "v2":
         from detector.features_v2 import load as load_v2
         raw = load_v2(a.features_v2, extra=a.features_v2_extra)
         raw_hf = load_v2(a.features_v2, extra=a.features_v2_extra, horizon_followers=a.features_v2_followers) \
             if a.features_v2_followers and os.path.exists(a.features_v2_followers) else None
-        d = add_model_note_v2(classify(flags, score_v2(raw, raw_hf), pd.Timestamp(a.run_date).date()), raw_hf if raw_hf is not None else raw)
+        d = add_model_note_v2(classify(flags, score_v2(raw, raw_hf), pd.Timestamp(a.run_date).date(), series), raw_hf if raw_hf is not None else raw)
     else:
-        d = add_model_note(classify(flags, score(features), pd.Timestamp(a.run_date).date()), features)
+        d = add_model_note(classify(flags, score(features), pd.Timestamp(a.run_date).date(), series), features)
     table = to_table(d)
     os.makedirs("results", exist_ok=True)
     os.makedirs("outputs", exist_ok=True)   # row-level output: git-ignored

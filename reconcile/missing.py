@@ -5,7 +5,8 @@ Three tests and one count:
                                against true paid = public - opt-in organic. Same 117 posts as the pre-boost test in analyze.py.
   facebook_factor            : Facebook part of the total (SocAPI total - SocAPI Instagram) = k x paid Facebook video plays.
                                k is fitted on the other posts each time (leave one out), 20 posts with SocAPI data.
-  coverage                   : boosted posts in the daily table, by how we know they are boosted and how we get organic.
+  coverage                   : boosted posts in the daily table, by how we know they are boosted and how we get organic
+                               (creator data, known start date, start found from the view jump, or missing, with why).
 
 Inputs : data/recon_panel_ig_full.psv (+ pub dates), reconcile/organic_curve_ig.csv, latest outputs/paid_classification_*.parquet
 Output : results/predict_missing.json
@@ -37,18 +38,28 @@ def closure(r):
 def coverage(path):
     d = pd.read_parquet(path)
     d.columns = [c.lower() for c in d.columns]
-    method = {"opt-in private views (organic only)": "creator_data", "opt-in until it stopped updating, then organic curve": "creator_data",
-              "pre-boost public read x organic curve": "estimated_preboost", "not separable: boosted before the first public read": "missing"}
+    m_ = d.organic_views_method.fillna("")
+    kind = np.select([m_.str.startswith("opt-in"), m_ == "pre-boost public read x organic curve",
+                      m_ == "pre-boost read found from the view jump x organic curve", m_.str.startswith("not separable")],
+                     ["creator_data", "estimated_known_start", "estimated_view_jump", "missing"], "")
+    reason = {"not separable: boosted before the first public read": "boosted_before_first_read",
+              "not separable: first jump before day 3": "jump_before_day_3",
+              "not separable: no clear jump in the first 90 days": "no_clear_jump",
+              "not separable: fewer than 2 public reads in the first 90 days": "too_few_reads",
+              "not separable: no public reads in the first 90 days": "too_few_reads"}
     out = {"source": path.split("/")[-1].replace(".parquet", "") + " (daily table, aggregates only)"}
     for p, g in d.groupby("post_platform"):
-        b = g[g.is_paid == True]  # noqa: E712  (is_paid is None for posts the model cannot score)
-        m = b.organic_views_method.map(method)
-        missing = b[m == "missing"]
-        out[p] = {"posts": int(len(g)), "boosted_by_record": int((b.paid_basis == "evidence").sum()),
-                  "boosted_by_model": int((b.paid_basis == "model").sum()), "not_scored": int((g.paid_status == "NOT_SCORED").sum()),
-                  "organic_from": {k: int((m == k).sum()) for k in ("creator_data", "estimated_preboost", "missing")},
-                  "missing_by_reason": {"model_flag_no_start_date": int((missing.paid_basis == "model").sum()),
-                                        "boosted_before_first_read": int((missing.paid_basis == "evidence").sum())}}
+        b = g.is_paid == True  # noqa: E712  (is_paid is None for posts the model cannot score)
+        k = pd.Series(kind, index=d.index)[g.index][b]
+        miss = m_[g.index][b][k == "missing"].map(reason)
+        out[p] = {"posts": int(len(g)), "boosted_by_record": int((b & (g.paid_basis == "evidence")).sum()),
+                  "boosted_by_model": int((b & (g.paid_basis == "model")).sum()), "not_scored": int((g.paid_status == "NOT_SCORED").sum()),
+                  "organic_from": {x: int((k == x).sum()) for x in ("creator_data", "estimated_known_start", "estimated_view_jump", "missing")},
+                  "missing_by_reason": {x: int((miss == x).sum()) for x in ("boosted_before_first_read", "jump_before_day_3", "no_clear_jump", "too_few_reads")},
+                  "missing_by_basis": {"record": int(((k == "missing") & (g.paid_basis[b] == "evidence")).sum()),
+                                       "model": int(((k == "missing") & (g.paid_basis[b] == "model")).sum())}}
+        assert sum(out[p]["organic_from"].values()) == out[p]["boosted_by_record"] + out[p]["boosted_by_model"], p
+        assert sum(out[p]["missing_by_reason"].values()) == out[p]["organic_from"]["missing"], p
     return out
 
 

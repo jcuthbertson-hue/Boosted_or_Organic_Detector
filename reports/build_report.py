@@ -86,7 +86,8 @@ def load():
                 MF=j("results/month_folds.json") if os.path.exists("results/month_folds.json") else None,
                 AU=j("results/ig_miss_audit.json") if os.path.exists("results/ig_miss_audit.json") else None,
                 EQ=j("results/vn_boost_equation.json") if os.path.exists("results/vn_boost_equation.json") else None,
-                PM=j("results/predict_missing.json") if os.path.exists("results/predict_missing.json") else None)
+                PM=j("results/predict_missing.json") if os.path.exists("results/predict_missing.json") else None,
+                BS=j("results/boost_start_eval.json") if os.path.exists("results/boost_start_eval.json") else None)
 
 
 # ---------------------------------------------------------------- small components
@@ -486,6 +487,7 @@ def start(D):
     boosted = lambda c: c["boosted_by_record"] + c["boosted_by_model"]
     share_model = lambda c: c["boosted_by_model"] / boosted(c)
     k = fb["k_median_all_posts"]
+    bs = (D.get("BS") or {}).get("test", {}).get("organic_instagram")
 
     brief = ('<article class="card span3 brief">'
              f'<div class="br-row"><span class="br-k">The goal</span><p>For every campaign post, know if it was boosted, and how many of its views were '
@@ -504,8 +506,10 @@ def start(D):
                     f'When there is no record, the model checks the view pattern. It finds <b>{ig["boosted_by_model"]:,}</b> more on Instagram and <b>{tt["boosted_by_model"]:,}</b> more on TikTok.</p>',
                     f'{round(100 * im["precision"])} in 100 model flags are right (test posts).', "#model")
              + step(2, f"How many views are {term('o', 'organic')}?",
-                    f'<p>Creator account data when we have it. If not, the views just before the boost, grown at the normal rate.</p>',
-                    f'Estimate: {pct(curve["median_abs_error"], 1)} off for a typical post ({curve["posts"]} posts).', "#findings")
+                    '<p>Creator account data when we have it. If not, the views just before the boost, grown at the normal rate. '
+                    'With no start date, the start is found from the jump in daily views.</p>',
+                    f'Known start: {pct(curve["median_abs_error"], 1)} off for a typical post ({curve["posts"]} posts). '
+                    + (f'Start found from the jump: {pct(bs["median_abs_error"], 1)} off ({bs["posts"]} posts).' if bs else ""), "#gaps")
              + step(3, f"How many are {term('i', 'paid')}?",
                     f'<p>Total − the organic estimate. Paid is most of the views, so a small organic miss is a tiny paid miss.</p>',
                     f'{pct(pd_["public_minus_organic_estimate"]["median_abs_error"])} off for a typical post ({pd_["public_minus_organic_estimate"]["posts"]} posts). '
@@ -522,20 +526,24 @@ def start(D):
     def cov_bar(c, lab):
         n = boosted(c)
         o = c["organic_from"]
-        segs = [("cd", o["creator_data"], "creator data"), ("es", o["estimated_preboost"], "estimated"), ("ms", o["missing"], "missing")]
+        segs = [("cd", o["creator_data"], "creator data"), ("es", o["estimated_known_start"], "estimated from the known start date"),
+                ("ej", o["estimated_view_jump"], "estimated, start found from the view jump"), ("ms", o["missing"], "missing")]
         bar = "".join(f'<i class="sg {k_} grow" style="width:{100 * v / n:.2f}%;--d:{.25 * i}s" tabindex="0" data-tip="{esc(f"{v:,} of {n:,} boosted {lab} posts: {t}.")}">'
                       + (f'<span>{pct(v / n)}</span>' if v / n >= .08 else "") + "</i>" for i, (k_, v, t) in enumerate(segs) if v)
         return f'<div class="cov-row"><span class="cov-l"><b>{lab}</b>{n:,} boosted posts</span><div class="cov-bar">{bar}</div></div>'
-    split = lambda c: (c["organic_from"]["creator_data"] + c["organic_from"]["estimated_preboost"]) / boosted(c)
+    split = lambda c: 1 - c["organic_from"]["missing"] / boosted(c)
     cov = claim_card("Where we stand today",
-                     f"We can split {pct(split(ig))} of boosted Instagram posts into organic and paid, but only {pct(split(tt))} of boosted TikTok posts.",
+                     f"We can split {pct(split(ig))} of boosted Instagram posts into organic and paid, and {pct(split(tt))} of boosted TikTok posts.",
                      cov_bar(ig, "Instagram") + cov_bar(tt, "TikTok")
-                     + legend([("cov-k cd", "Creator data (measured)"), ("cov-k es", "Estimated from views before the boost"), ("cov-k ms", "Missing: no split yet")])
-                     + table(["Boosted posts", "Creator data", "Estimated", "Missing"],
-                             [[lab] + [f'{c["organic_from"][k_]:,}' for k_ in ("creator_data", "estimated_preboost", "missing")] for c, lab in ((ig, "Instagram"), (tt, "TikTok"))])
-                     + f'<p class="claim-note">Missing means one of two things: the model flagged the post but we do not know when the boost started, '
-                       f'or the boost started before our first read. <a href="#gaps">See the fixes</a></p>',
-                     f"Boosted = ad record or model flag, daily table, data read 2026-10-07. TikTok has no creator data that counts organic only. "
+                     + legend([("cov-k cd", "Creator data (measured)"), ("cov-k es", "Known start date"),
+                               ("cov-k ej", "Start found from the view jump"), ("cov-k ms", "Missing: no split yet")])
+                     + table(["Boosted posts", "Creator data", "Known start", "View jump", "Missing"],
+                             [[lab] + [f'{c["organic_from"][k_]:,}' for k_ in ("creator_data", "estimated_known_start", "estimated_view_jump", "missing")]
+                              for c, lab in ((ig, "Instagram"), (tt, "TikTok"))])
+                     + f'<p class="claim-note">New: for {ig["organic_from"]["estimated_view_jump"] + tt["organic_from"]["estimated_view_jump"]:,} boosted posts with no start date, '
+                       f'the start is now found from the jump in daily views. Missing means there are no clean views before the boost. '
+                       f'<a href="#gaps">See the fixes</a></p>',
+                     f"Boosted = ad record or model flag. Daily table: evidence read 2026-10-07, daily views pulled 2026-10-08. TikTok has no creator data that counts organic only. "
                      f"The model cannot score {ig['not_scored']:,} Instagram and {tt['not_scored']:,} TikTok posts, mostly because we have no public read in their first 60 days.",
                      cls="span2")
     need = claim_card("Do we need the model?",
@@ -546,20 +554,24 @@ def start(D):
                       f'(views above followers and engagement below 1%).</span></div></div>',
                       f"Posts VN boosted have ad records, so the equation needs no model. Model vs rule: Instagram test posts, {im['tp'] + im['fn']} boosted. "
                       f"The rule is right on {pct(rule['precision'])} of its flags, the model on {pct(im['precision'])}.")
-    gaps = [(f"{ig['missing_by_reason']['model_flag_no_start_date']:,} Instagram and {tt['missing_by_reason']['model_flag_no_start_date']:,} TikTok posts the model flags",
-             "We do not know when their boost started, so we cannot take the views before it.",
-             "Find the start from the jump in daily views. Test it on posts with a known start.", "BI · next"),
-            (f"{ig['missing_by_reason']['boosted_before_first_read']:,} Instagram and {tt['missing_by_reason']['boosted_before_first_read']:,} TikTok posts boosted before our first read",
-             "No clean views before the boost exist.", "Read posts from day 0. Boost after day 7–14, or use a dark post.", "Paid Media"),
+    mr = "missing_by_reason"
+    early = lambda c: c[mr]["boosted_before_first_read"] + c[mr]["jump_before_day_3"]
+    gaps = [(f"{early(ig):,} Instagram and {early(tt):,} TikTok posts boosted at publish or before our first read",
+             "No clean views exist before the boost, so there is nothing to grow forward.",
+             "Read posts from day 0. Boost after day 7–14, or use a dark post.", "Paid Media"),
+            (f"{ig[mr]['no_clear_jump']:,} Instagram and {tt[mr]['no_clear_jump']:,} TikTok posts with no clear jump",
+             "The daily views never jump: the boost was small or slow, or the model flag is wrong.",
+             "Match them to ad records where we can. Next method to test: the creator's usual organic views.", "BI · next"),
             ("TikTok organic after a boost", "TikTok creator data also counts Spark Ad views, so we cannot check the estimate.",
              "Run one TikTok dark-post test.", "Paid Media"),
             (f"The Facebook correction ({k:.1f}×)", f"It rests on {fb['total_from_nimble_plus_k_fb_plays']['posts']} posts.",
              "Check the 20 posts in the Instagram app. Collect more SocAPI reads.", "BI + Paid Media")]
     rows = "".join(f'<li><span class="gap-n">{i}</span><div><b>{esc(w)}</b><span>{esc(why)}</span></div><div><span class="gap-fix">{esc(fix)}</span>'
                    f'<span class="gap-o">{esc(o)}</span></div></li>' for i, (w, why, fix, o) in enumerate(gaps, 1))
-    miss = claim_card("What is still missing", "We can predict the missing parts when we know when the boost started. Four gaps remain, and each has a fix.",
+    miss = claim_card("What is still missing", f"We can now estimate most of what we do not measure. {len(gaps)} gaps remain, and each has a fix.",
                       f'<ol class="gaps">{rows}</ol>',
-                      "Ranked by number of posts. Paid can be predicted wherever organic can (step 3), so each gap above is really an organic gap.",
+                      f"Daily table, data read 2026-10-07; daily views pulled 2026-10-08. View-jump test: {(D.get('BS') or {}).get('posts', {}).get('ig_boosted', 0) + (D.get('BS') or {}).get('posts', {}).get('tt_boosted', 0):,} boosted posts, "
+                      "tuned on half and scored once on the other half (results/boost_start_eval.json). Paid can be predicted wherever organic can (step 3).",
                       cls="span3", attrs='id="gaps"')
     head = ('<div class="block-head"><div><h2>Start here</h2><p class="card-sub">The goal, the ask, and what we found. '
             'Each part links to its proof further down.</p></div></div>')
@@ -1556,6 +1568,7 @@ footer { color: var(--muted); font-size: 13px; display: flex; justify-content: s
 .cov-bar { display: flex; gap: 2px; height: 40px; }
 .sg.cd, .sw.cov-k.cd { background: var(--c-o); } .sg.cd span { color: var(--on-c); }
 .sg.es, .sw.cov-k.es { background: color-mix(in srgb, var(--c-o) 35%, var(--card)); } .sg.es span { color: var(--c-o-ink); }
+.sg.ej, .sw.cov-k.ej { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--c-o) 45%, transparent) 0 2px, transparent 2px 6px), color-mix(in srgb, var(--c-o) 18%, var(--card)); } .sg.ej span { color: var(--c-o-ink); }
 .sg.ms, .sw.cov-k.ms { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--warn) 40%, transparent) 0 2px, transparent 2px 7px), var(--warn-bg); }
 .sg.ms span { color: var(--warn); }
 .gaps { list-style: none; margin: 0; padding: 0; display: grid; }

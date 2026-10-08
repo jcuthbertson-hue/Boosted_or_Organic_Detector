@@ -1,0 +1,165 @@
+{
+ "params": {
+  "t_early": 3.0,
+  "t_mid": 1.6,
+  "t_late": 1.15,
+  "m": 0.002,
+  "s": 1.5,
+  "t_lead": 1.15,
+  "min_age": 3
+ },
+ "series_pulled": "2026-10-08",
+ "table": "outputs/paid_classification_2026-10-07.parquet",
+ "posts": {
+  "ig_boosted": 2109,
+  "ig_organic": 451,
+  "tt_boosted": 1781,
+  "tt_organic": 300
+ },
+ "tune": {
+  "start_instagram": {
+   "posts": 76,
+   "with_clean_read": 55,
+   "found": 35,
+   "usable": 25,
+   "bad": 7,
+   "found_without_clean_read": 3
+  },
+  "start_tiktok": {
+   "posts": 349,
+   "with_clean_read": 283,
+   "found": 248,
+   "usable": 200,
+   "bad": 32,
+   "found_without_clean_read": 16
+  },
+  "organic_instagram": {
+   "posts": 222,
+   "median_abs_error": 0.11844412617413855,
+   "median_error": 0.014323414668990217,
+   "within_10pct": 0.43243243243243246,
+   "within_25pct": 0.6891891891891891,
+   "share_of_optin_posts_found": 0.5663265306122449
+  },
+  "organic_instagram_by_confidence": {
+   "low (day 3-6)": {
+    "posts": 61,
+    "median_abs_error": 0.2097172779569872,
+    "median_error": -0.014921963268556349,
+    "within_10pct": 0.3114754098360656,
+    "within_25pct": 0.5737704918032787
+   },
+   "medium (day 7-13)": {
+    "posts": 57,
+    "median_abs_error": 0.14937796089739752,
+    "median_error": 0.003497173719835328,
+    "within_10pct": 0.3157894736842105,
+    "within_25pct": 0.6140350877192983
+   },
+   "high (day 14+)": {
+    "posts": 104,
+    "median_abs_error": 0.0817754242604519,
+    "median_error": 0.02064056784343595,
+    "within_10pct": 0.5673076923076923,
+    "within_25pct": 0.7980769230769231
+   }
+  },
+  "paid_instagram": {
+   "posts": 222,
+   "median_abs_error": 0.005089242494706215,
+   "median_error": -0.00018788107025584898,
+   "within_10pct": 0.8378378378378378,
+   "within_25pct": 0.9279279279279279
+  },
+  "tiktok_vs_known_date": {
+   "posts": 313,
+   "median_abs_error": 0.01447193216062791,
+   "median_error": -1.022716813130439e-05,
+   "within_10pct": 0.8402555910543131,
+   "within_25pct": 0.8945686900958466
+  },
+  "false_alarm_instagram": {
+   "posts": 230,
+   "found": 5,
+   "rate": 0.021739130434782608
+  },
+  "false_alarm_tiktok": {
+   "posts": 159,
+   "found": 5,
+   "rate": 0.031446540880503145
+  }
+ },
+ "test": {
+  "start_instagram": {
+   "posts": 64,
+   "with_clean_read": 44,
+   "found": 32,
+   "usable": 19,
+   "bad": 8,
+   "found_without_clean_read": 5
+  },
+  "start_tiktok": {
+   "posts": 361,
+   "with_clean_read": 304,
+   "found": 240,
+   "usable": 193,
+   "bad": 38,
+   "found_without_clean_read": 9
+  },
+  "organic_instagram": {
+   "posts": 242,
+   "median_abs_error": 0.13453931476257147,
+   "median_error": 0.023589730522786807,
+   "within_10pct": 0.43388429752066116,
+   "within_25pct": 0.7479338842975206,
+   "share_of_optin_posts_found": 0.6269430051813472
+  },
+  "organic_instagram_by_confidence": {
+   "low (day 3-6)": {
+    "posts": 59,
+    "median_abs_error": 0.16630808224409072,
+    "median_error": 0.006582711572745594,
+    "within_10pct": 0.3050847457627119,
+    "within_25pct": 0.6779661016949152
+   },
+   "medium (day 7-13)": {
+    "posts": 73,
+    "median_abs_error": 0.15650985783261812,
+    "median_error": 0.04779442886338754,
+    "within_10pct": 0.3424657534246575,
+    "within_25pct": 0.7808219178082192
+   },
+   "high (day 14+)": {
+    "posts": 110,
+    "median_abs_error": 0.0811374016631006,
+    "median_error": 0.02452407192212438,
+    "within_10pct": 0.5636363636363636,
+    "within_25pct": 0.7636363636363637
+   }
+  },
+  "paid_instagram": {
+   "posts": 241,
+   "median_abs_error": 0.00312031304751193,
+   "median_error": -0.0002931078849703356,
+   "within_10pct": 0.8838174273858921,
+   "within_25pct": 0.966804979253112
+  },
+  "tiktok_vs_known_date": {
+   "posts": 340,
+   "median_abs_error": 0.015789854136057005,
+   "median_error": -6.64880977174087e-05,
+   "within_10pct": 0.8029411764705883,
+   "within_25pct": 0.8705882352941177
+  },
+  "false_alarm_instagram": {
+   "posts": 221,
+   "found": 7,
+   "rate": 0.03167420814479638
+  },
+  "false_alarm_tiktok": {
+   "posts": 141,
+   "found": 10,
+   "rate": 0.07092198581560284
+  }
+ }
+}

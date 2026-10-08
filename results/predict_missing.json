@@ -45,7 +45,7 @@
   }
  },
  "coverage": {
-  "source": "paid_classification_2026-10-07 (daily table, aggregates only)",
+  "source": "paid_classification_2026-10-08 (daily table, aggregates only)",
   "Instagram": {
    "posts": 23552,
    "boosted_by_record": 2488,
@@ -53,12 +53,19 @@
    "not_scored": 6478,
    "organic_from": {
     "creator_data": 1711,
-    "estimated_preboost": 498,
-    "missing": 903
+    "estimated_known_start": 498,
+    "estimated_view_jump": 493,
+    "missing": 410
    },
    "missing_by_reason": {
-    "model_flag_no_start_date": 551,
-    "boosted_before_first_read": 352
+    "boosted_before_first_read": 185,
+    "jump_before_day_3": 114,
+    "no_clear_jump": 111,
+    "too_few_reads": 0
+   },
+   "missing_by_basis": {
+    "record": 244,
+    "model": 166
    }
   },
   "Tiktok": {
@@ -68,12 +75,19 @@
    "not_scored": 4526,
    "organic_from": {
     "creator_data": 0,
-    "estimated_preboost": 826,
-    "missing": 1051
+    "estimated_known_start": 826,
+    "estimated_view_jump": 441,
+    "missing": 610
    },
    "missing_by_reason": {
-    "model_flag_no_start_date": 784,
-    "boosted_before_first_read": 267
+    "boosted_before_first_read": 267,
+    "jump_before_day_3": 178,
+    "no_clear_jump": 155,
+    "too_few_reads": 10
+   },
+   "missing_by_basis": {
+    "record": 267,
+    "model": 343
    }
   }
  }

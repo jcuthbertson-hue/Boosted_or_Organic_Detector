@@ -9,10 +9,12 @@
 --   * Step A loads a 500-row TEST file. Run step B (all posts) only if every check in step A matches.
 --
 -- Files (from pipeline/run_daily.py --parquet, column names = UPPERCASE table columns):
---   paid_classification_2026-10-07_TEST_500.parquet   500 posts (250 Instagram, 250 TikTok), random sample
---   paid_classification_2026-10-07.parquet            41,484 posts (all Instagram / TikTok campaign posts in BIRA)
+--   paid_classification_2026-10-08_TEST_500.parquet   500 posts (250 Instagram, 250 TikTok), random sample
+--   paid_classification_2026-10-08.parquet            41,484 posts (all Instagram / TikTok campaign posts in BIRA)
 --   Models: boost_detector_v2.2 on both platforms (day 60 / 30 / 14; results/model_v2_2_targets.json);
 --   Instagram opt-in evidence corrected for stale opt-in (plan amendment 4); followers known at the horizon (amendment 5)
+--   2026-10-08: boosted posts with no start date get their pre-boost read from the view jump (PREBOOST_SOURCE = 'view jump',
+--   BOOST_START_DETECTED_DATE; reconcile/boost_start.py). Paid / organic split per post is unchanged from 2026-10-07.
 
 USE ROLE USERS_BUSINESS_INTELLIGENCE;
 USE WAREHOUSE BI_WAREHOUSE;
@@ -27,18 +29,18 @@ CREATE STAGE IF NOT EXISTS LOAD_STAGE FILE_FORMAT = PARQUET_FMT COMMENT = 'Uploa
 -- Upload the two .parquet files to LOAD_STAGE:
 --   Snowsight: open the stage LOAD_STAGE in this schema and add the files, or
 --   SnowSQL / Snowflake CLI:
---     PUT file:///<path>/paid_classification_2026-10-07_TEST_500.parquet @LOAD_STAGE AUTO_COMPRESS = FALSE;
---     PUT file:///<path>/paid_classification_2026-10-07.parquet          @LOAD_STAGE AUTO_COMPRESS = FALSE;
+--     PUT file:///<path>/paid_classification_2026-10-08_TEST_500.parquet @LOAD_STAGE AUTO_COMPRESS = FALSE;
+--     PUT file:///<path>/paid_classification_2026-10-08.parquet          @LOAD_STAGE AUTO_COMPRESS = FALSE;
 LIST @LOAD_STAGE;
 
 -- A. TEST load: 500 posts -------------------------------------------------------------------------------------
 CREATE OR REPLACE TABLE PAID_CLASSIFICATION__POST_TEST
   USING TEMPLATE (
     SELECT ARRAY_AGG(OBJECT_CONSTRUCT(*))
-    FROM TABLE(INFER_SCHEMA(LOCATION => '@LOAD_STAGE/paid_classification_2026-10-07_TEST_500.parquet',
+    FROM TABLE(INFER_SCHEMA(LOCATION => '@LOAD_STAGE/paid_classification_2026-10-08_TEST_500.parquet',
                             FILE_FORMAT => 'PARQUET_FMT')));
 COPY INTO PAID_CLASSIFICATION__POST_TEST
-  FROM @LOAD_STAGE/paid_classification_2026-10-07_TEST_500.parquet
+  FROM @LOAD_STAGE/paid_classification_2026-10-08_TEST_500.parquet
   FILE_FORMAT = (FORMAT_NAME = 'PARQUET_FMT') MATCH_BY_COLUMN_NAME = CASE_INSENSITIVE;
 
 -- A1. Rows and paid split. Expected:
@@ -57,14 +59,17 @@ LEFT JOIN (SELECT DISTINCT POST_SCRAPER_REFERENCE_KEY k, POST_PLATFORM pf
            FROM DM_BUSINESS_INTELLIGENCE.BI_REPORTING_APP.BIRA_MART_ORGANIC__CAMPAIGN_POST_PERFORMANCE) m
   ON m.k = p.POST_SCRAPER_REFERENCE_KEY AND m.pf = p.POST_PLATFORM;
 
+-- A4. Where the pre-boost read came from. Expected: known start date 23 | view jump 16 | none 461
+SELECT COALESCE(PREBOOST_SOURCE, 'none') source, COUNT(*) posts FROM PAID_CLASSIFICATION__POST_TEST GROUP BY 1 ORDER BY 1;
+
 -- B. FULL load: all 41,484 posts (only after A1-A3 match) --------------------------------------------------------
 CREATE OR REPLACE TABLE PAID_CLASSIFICATION__POST
   USING TEMPLATE (
     SELECT ARRAY_AGG(OBJECT_CONSTRUCT(*))
-    FROM TABLE(INFER_SCHEMA(LOCATION => '@LOAD_STAGE/paid_classification_2026-10-07.parquet',
+    FROM TABLE(INFER_SCHEMA(LOCATION => '@LOAD_STAGE/paid_classification_2026-10-08.parquet',
                             FILE_FORMAT => 'PARQUET_FMT')));
 COPY INTO PAID_CLASSIFICATION__POST
-  FROM @LOAD_STAGE/paid_classification_2026-10-07.parquet
+  FROM @LOAD_STAGE/paid_classification_2026-10-08.parquet
   FILE_FORMAT = (FORMAT_NAME = 'PARQUET_FMT') MATCH_BY_COLUMN_NAME = CASE_INSENSITIVE;
 
 -- B1. Expected:
@@ -80,9 +85,14 @@ LEFT JOIN (SELECT DISTINCT POST_SCRAPER_REFERENCE_KEY k, POST_PLATFORM pf
            FROM DM_BUSINESS_INTELLIGENCE.BI_REPORTING_APP.BIRA_MART_ORGANIC__CAMPAIGN_POST_PERFORMANCE) m
   ON m.k = p.POST_SCRAPER_REFERENCE_KEY AND m.pf = p.POST_PLATFORM;
 
+-- B3. Expected: Instagram known start date 498 | view jump 493; Tiktok known start date 826 | view jump 441
+SELECT POST_PLATFORM, PREBOOST_SOURCE, COUNT(*) posts FROM PAID_CLASSIFICATION__POST
+WHERE PREBOOST_SOURCE IS NOT NULL GROUP BY 1, 2 ORDER BY 1, 2;
+
 -- C. How to use it: attach the paid call to BIRA rows (one BIRA row per post x campaign) --------------------------
 SELECT m.CAMPAIGN_ORGANIZATION, m.POST_URL, m.POST_PLATFORM, m.VIEWS_LATEST,
-       p.IS_PAID, p.PAID_BASIS, p.PAID_STATUS, p.MODEL_SCORE, p.ORGANIC_VIEWS_EST, p.ORGANIC_VIEWS_CONFIDENCE
+       p.IS_PAID, p.PAID_BASIS, p.PAID_STATUS, p.MODEL_SCORE, p.ORGANIC_VIEWS_EST, p.ORGANIC_VIEWS_CONFIDENCE,
+       p.PAID_VIEWS_ON_PLATFORM_EST, p.PREBOOST_SOURCE
 FROM DM_BUSINESS_INTELLIGENCE.BI_REPORTING_APP.BIRA_MART_ORGANIC__CAMPAIGN_POST_PERFORMANCE m
 LEFT JOIN DM_BUSINESS_INTELLIGENCE.SANDBOX_JCUTHBERTSON.PAID_CLASSIFICATION__POST p
   ON p.POST_SCRAPER_REFERENCE_KEY = m.POST_SCRAPER_REFERENCE_KEY AND p.POST_PLATFORM = m.POST_PLATFORM

@@ -132,7 +132,7 @@ schema we may write to.
 ## All-post export (Parquet)
 
 `python3 -m pipeline.run_daily --flags data/flags.csv --optin-live data/optin_live.psv --tier-changes data/optin_tier_changes.psv --parquet outputs/paid_classification_<date>.parquet`
-(model inputs default to `data/v2_raw.psv` = `sql/11`, `data/v2_extra.psv` = `sql/12`, `data/v2_followers.psv` = `sql/14`;
+(model inputs default to `data/v2_raw.psv` = `sql/11`, `data/v2_extra.psv` = `sql/12`, `data/v2_followers.psv` = `sql/14`; daily views `data/view_series.psv` = `sql/15`;
 `--snowflake` runs the same SQL directly)
 writes one row per Instagram / TikTok campaign post (git-ignored; row-level). Column names are the UPPERCASE
 table columns. Join back to Snowflake on `POST_SCRAPER_REFERENCE_KEY` + `POST_PLATFORM` (BIRA mart).
@@ -145,7 +145,35 @@ To put it in Snowflake, run `sql/10_sandbox_test_load.sql` in a worksheet: it lo
 | `PAID_BASIS` | `evidence` (tag, ad link, opt-in or SocAPI gap, opt-in >= 90% organic, manual date) or `model` |
 | `PAID_STATUS`, `BOOST_EVIDENCE` | status and the strongest proof tier |
 | `MODEL_SCORE`, `MODEL_THRESHOLD`, `MODEL_HORIZON_DAYS`, `MODEL_NOTE` | 0-1 score from the day-60, 30 or 14 model, cut-off from train, which model; note = reason when there is no score, or "provisional" for a day-14 Instagram "organic" |
-| `ORGANIC_VIEWS_EST`, `ORGANIC_VIEWS_METHOD`, `ORGANIC_VIEWS_CONFIDENCE` | organic views: opt-in measured; opt-in at the freeze x organic curve when opt-in stopped updating; or pre-boost read x organic curve |
+| `ORGANIC_VIEWS_EST`, `ORGANIC_VIEWS_METHOD`, `ORGANIC_VIEWS_CONFIDENCE` | organic views: opt-in measured; opt-in at the freeze x organic curve when opt-in stopped updating; or pre-boost read x organic curve (known start date, or start found from the view jump) |
+| `PAID_VIEWS_ON_PLATFORM_EST` | public views - organic estimate (Instagram: paid views served on Instagram) |
+| `VIEWS_PUBLIC_PREBOOST`, `PREBOOST_AGE_DAYS`, `PREBOOST_SOURCE` | the pre-boost read the estimate used, and where it came from: `known start date` or `view jump` |
+| `BOOST_START_DATE`, `BOOST_START_DETECTED_DATE` | known start (first spend or manual paid date); for `view jump`, the earliest day the boost can have started |
+
+## Boost start from the view jump
+
+Boosted posts with no start date (model flags; evidence with no spend or paid date) had no pre-boost read, so no organic
+estimate. `reconcile/boost_start.py` finds the start in the daily public views (`sql/15`): the first interval where views
+grow far faster than the organic curve for that age (x 1.15 after day 3; organic posts stay within about x 1.03-1.27),
+the jump is not rounding noise, and views stay above the organic path. A first jump before day 3 is not used (early organic
+spikes look the same; an estimate from a day 0-2 read was 57% off). A known start date always wins.
+
+Test (`python3 -m reconcile.boost_start_eval`, `results/boost_start_eval.json`): settings chosen on half of the posts,
+scored once on the other half.
+
+| Check (held-out half) | Result |
+|---|---|
+| Instagram organic vs opt-in | median error 13.5%, 75% within 25% (242 posts); known-date method: 11.5% |
+| by confidence: high (day 14+) / medium (7-13) / low (3-6) | 8.1% / 15.7% / 16.6% |
+| Instagram paid = public - organic estimate | median error 0.3%, 88% within 10% (241 posts) |
+| TikTok vs the known-date estimate | median difference 1.6%, 87% within 25% (340 posts) |
+| TikTok start vs ad logs | 193 of 240 picked reads hold <= 5% paid views; 47 are too late |
+| False alarms on organic posts | Instagram 3% (221 posts), TikTok 7% (141 posts) |
+
+Effect on the daily table (2026-10-08 export): 934 more boosted posts get organic and paid
+estimates. Boosted posts with an organic / paid split: Instagram 87%
+(was 71%), TikTok 68% (was 44%).
+Caveat: TikTok organic after a boost still has no ground truth; the TikTok checks above test the start date, not organic.
 
 ## How to run
 
@@ -172,6 +200,8 @@ python3 -m detector.month_folds       # month-by-month noise and learning curve,
 python3 -m detector.fresh2_eval --data data/fresh2 --data-date <date>   # next clean test (posts after 2026-09-24)
 python3 -m reconcile.analyze          # subtraction test on Instagram -> results/reconciliation.json
 python3 -m reconcile.analyze_tiktok   # TikTok + curve back-test -> results/reconciliation_tiktok.json
+python3 -m reconcile.boost_start_eval # view-jump start test (sql/15 -> data/view_series.psv) -> results/boost_start_eval.json
+python3 -m reconcile.missing        # predict the parts we do not measure + daily-table coverage -> results/predict_missing.json
 python3 -m reports.build_report       # reports/boost_report.html
 python3 -m tests.test_pipeline        # offline checks of the daily pipeline logic
 python3 -m pipeline.run_daily --flags data/flags.csv --features-v2 data/v2_raw.psv   # offline daily run (flags = amended sql/05 output)
@@ -193,6 +223,7 @@ python3 -m pipeline.run_daily --flags data/flags.csv --features-v2 data/v2_raw.p
 | `sql/12_v2_jump_features.sql` | Model v2 input: likes per new view in the biggest jump, day-60 values and label input |
 | `sql/13_optin_staleness.sql` | Where the Instagram opt-in count stopped updating (label and evidence fix) |
 | `sql/14_v2_horizon_followers.sql` | Follower count known at day 14 / 30 / 60 (v2.2 leak repair) |
+| `sql/15_view_series.sql` | Daily public views, days 0-90, for the view-jump boost start |
 | `docs/IMPROVEMENT_PLAN.md` | v2 targets and every change, logged before the held-out evaluation |
 | `reconcile/` | Subtraction test, TikTok check, organic curve, production organic estimate, coverage from the daily table |
 | `detector/` | Features, train / test protocol, full evaluation, scoring |

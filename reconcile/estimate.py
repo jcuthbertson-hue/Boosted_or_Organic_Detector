@@ -8,8 +8,11 @@ Method (chosen and tested in reconcile/analyze.py and reconcile/analyze_tiktok.p
        organic = pre-boost public read x organic growth from that age to today (median curve of unboosted posts),
        capped at today's public views.
      Instagram test vs opt-in truth: median error 11.5%, 77% of posts within 25% (117 boosted posts).
-  3. Boosted post with no read before the first spend day: not separable (NULL).
-  4. No paid evidence: organic = public views.
+  3. Boosted post with no start date (model flag, or evidence without a spend or paid date): the pre-boost read is found
+     from the jump in the daily public views (reconcile/boost_start.py), then method 2. Held-out Instagram test vs opt-in:
+     median error 13.5%, 75% of posts within 25% (242 posts); results/boost_start_eval.json.
+  4. Boosted post with no read before the start: not separable (NULL).
+  5. No paid evidence: organic = public views.
 We do NOT use "public - paid metric". It fails per post (median error 70% with the best metric, impressions)
 because paid is a median 94% of public views on boosted posts, so a small paid error is a large organic error.
 
@@ -46,7 +49,8 @@ def confidence(age_pre):
 
 def estimate(df, curves=None):
     """df columns: platform, boosted (bool), views_public_latest, views_private_latest, age_latest,
-    views_before_first_spend, preboost_age_days. Returns a frame with organic_views_est / _method / _confidence."""
+    views_before_first_spend, preboost_age_days; optional boost_start, views_preboost_detected, preboost_age_detected,
+    detect_note (view-jump inputs). Returns a frame with organic_views_est / _method / _confidence."""
     curves = curves or load_curves()
     d = df.reset_index(drop=True)
     est = pd.Series(np.nan, index=d.index)
@@ -84,8 +88,23 @@ def estimate(df, curves=None):
             est[m] = np.minimum(d.views_before_first_spend[m] * g, d.views_public_latest[m].fillna(np.inf))
             method[m] = "pre-boost public read x organic curve"
             conf[m] = confidence(d.preboost_age_days[m].values)
-    none = rest & ~has_pre
+    # no known start date (model flag, or evidence with no spend or paid date): pre-boost read found from the view jump
+    # (reconcile/boost_start.py). Never used when a start date is known: that date wins.
+    known = d["boost_start"].notna() if "boost_start" in d else pd.Series(False, index=d.index)
+    det = (rest & ~has_pre & ~known & (d.get("views_preboost_detected", nan) > 0)
+           & d.get("preboost_age_detected", nan).notna() & d.age_latest.notna())
+    for platform, curve in curves.items():
+        m = det & (d.platform == platform)
+        if m.any():
+            g = growth(curve, d.preboost_age_detected[m], d.age_latest[m])
+            est[m] = np.minimum(d.views_preboost_detected[m] * g, d.views_public_latest[m].fillna(np.inf))
+            method[m] = "pre-boost read found from the view jump x organic curve"
+            conf[m] = confidence(d.preboost_age_detected[m].values)
+    none = rest & ~has_pre & ~det
     method[none] = "not separable: boosted before the first public read"
+    if "detect_note" in d:      # posts with no start date: say why the view series gave no pre-boost read
+        why = none & ~known & d.detect_note.notna()
+        method[why] = "not separable: " + d.detect_note[why].astype(str)
     conf[none] = "none"
     return pd.DataFrame({"organic_views_est": est.round(), "organic_views_method": method,
                          "organic_views_confidence": conf})

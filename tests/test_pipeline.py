@@ -116,7 +116,56 @@ def test_provisional_day14_instagram():
     assert pd.isna(d.loc["x3", "model_note"])                       # TikTok day 14 met its target
 
 
+def series_rows(views_by_age, psrk="z", platform="Instagram"):
+    a = np.array(sorted(views_by_age)); v = np.array([views_by_age[x] for x in a], float)
+    return pd.DataFrame([(psrk, platform, "2026-08-01", a, v)], columns=["psrk", "platform", "od0", "ages", "views"])
+
+
+def test_boost_start_detect():
+    from reconcile.boost_start import NOTE_EARLY, NOTE_NONE, detect
+    c = load_curves()["Instagram"]
+    ages = np.arange(0, 61)
+    organic = 100000 * c[ages]
+    assert detect(ages, organic, c) == (None, NOTE_NONE)
+    # boost from day 11 to 20 (50,000 paid views a day): the pre-boost read is day 10
+    paid = np.clip(ages - 10, 0, 10) * 50000
+    i, note = detect(ages, organic + paid, c)
+    assert note == "jump" and ages[i] == 10
+    # boost from day 2: an early jump is not separable (early organic spikes look the same)
+    assert detect(ages, organic + np.clip(ages - 1, 0, 10) * 50000, c) == (None, NOTE_EARLY)
+    # one low read (a scraper dip) is not a boost
+    dip = organic.copy(); dip[15] *= 0.5
+    assert detect(ages, dip, c) == (None, NOTE_NONE)
+
+
+def test_view_jump_only_without_a_start_date():
+    ages = np.arange(0, 61)
+    c = load_curves()["Instagram"]
+    views = 100000 * c[ages] + np.clip(ages - 10, 0, 10) * 50000
+    f = flags().iloc[[4, 1]].reset_index(drop=True).assign(platform="Instagram", age_latest=60, views_public_latest=float(views[-1]))
+    f["psrk"] = ["p", "k"]                     # p: model flag, no start date; k: ad link with a known start, no pre-boost read
+    f.loc[1, ["boost_start", "first_spend"]] = pd.Timestamp("2026-08-01")
+    f.loc[1, ["views_before_first_spend", "preboost_age_days"]] = np.nan
+    sc = pd.DataFrame({"psrk": ["p"], "platform": ["Instagram"], "model_score": [0.9], "model_threshold": [0.5]})
+    series = pd.concat([series_rows(dict(zip(ages, views)), "p"), series_rows(dict(zip(ages, views)), "k")])
+    d = classify(f, sc, dt.date(2026, 10, 7), series).set_index("psrk")
+    assert d.loc["p", "paid_status"] == "PAID_PREDICTED"
+    assert d.loc["p", "organic_views_method"] == "pre-boost read found from the view jump x organic curve"
+    assert d.loc["p", "preboost_source"] == "view jump" and d.loc["p", "preboost_age_days"] == 10
+    assert d.loc["p", "organic_views_confidence"] == "medium"
+    assert pd.Timestamp(d.loc["p", "boost_start_detected"]) == pd.Timestamp("2026-08-12")
+    assert abs(d.loc["p", "organic_views_est"] / (100000 * c[60]) - 1) < 0.01      # recovers the organic path
+    # a known start date wins: no view-jump estimate, the post stays not separable
+    assert d.loc["k", "organic_views_method"] == "not separable: boosted before the first public read"
+    assert pd.isna(d.loc["k", "preboost_source"])
+    # no series at all: same result as before this step
+    d0 = classify(f, sc, dt.date(2026, 10, 7)).set_index("psrk")
+    assert d0.loc["p", "organic_views_method"] == "not separable: boosted before the first public read"
+
+
 if __name__ == "__main__":
+    test_boost_start_detect()
+    test_view_jump_only_without_a_start_date()
     test_provisional_day14_instagram()
     test_edge_inputs()
     test_classify()
