@@ -1,0 +1,779 @@
+{
+ "train_end": "2026-07-01",
+ "test": [
+  "2026-07-01",
+  "2026-09-09"
+ ],
+ "fresh": [
+  "2026-09-10",
+  "2026-09-24"
+ ],
+ "models": {
+  "Tiktok_h60": {
+   "model": "hgb(lr=0.03,leaves=15,min_leaf=40)",
+   "feature_set": "base+creator+jump+cnorm",
+   "calibrated": false,
+   "threshold": 0.56,
+   "features": [
+    "log_followers",
+    "log_views",
+    "log_vtf",
+    "share_v1",
+    "share_v2",
+    "share_v3",
+    "share_v5",
+    "share_v7",
+    "share_v10",
+    "share_v14",
+    "share_v21",
+    "share_v30",
+    "share_v45",
+    "rate_1_2",
+    "rate_2_3",
+    "rate_3_5",
+    "rate_5_7",
+    "rate_7_10",
+    "rate_10_14",
+    "rate_14_21",
+    "rate_21_30",
+    "rate_30_45",
+    "rate_45_60",
+    "accel_7_10",
+    "accel_10_14",
+    "accel_14_21",
+    "accel_21_30",
+    "accel_30_45",
+    "accel_45_60",
+    "jump_r7",
+    "jump_r14",
+    "jump_r30",
+    "jump_r60",
+    "jump_late_vs_early",
+    "lpv1",
+    "lpv3",
+    "lpv7",
+    "lpv14",
+    "lpv30",
+    "lpv60",
+    "like_dilution",
+    "comments_per_like",
+    "shares_per_view",
+    "er",
+    "creator_rel_reach",
+    "creator_prior_posts",
+    "jump_age",
+    "jump_lpv_ratio",
+    "min_new_lpv_ratio",
+    "jump_lpv",
+    "share_v25",
+    "share_v28",
+    "late_new_lpv_ratio",
+    "creator_rel_lpv",
+    "creator_rel_share_v3",
+    "creator_rel_vtf"
+   ],
+   "train": {
+    "n": 1296,
+    "n_pos": 482,
+    "cv_oof": {
+     "precision": 0.9764957264957265,
+     "recall": 0.9481327800829875,
+     "f1": 0.9621052631578948,
+     "tp": 457,
+     "fp": 11,
+     "fn": 25,
+     "tn": 803,
+     "material_recall": 0.9481327800829875,
+     "n_material": 482
+    },
+    "cv_roc_auc": 0.9865068765483703,
+    "cv_pr_auc": 0.9863122524415403,
+    "cv_ece": 0.014343150790912798,
+    "in_sample_roc_auc": 1.0
+   },
+   "test": {
+    "precision": 0.989247311827957,
+    "recall": 0.8846153846153846,
+    "f1": 0.9340101522842639,
+    "tp": 92,
+    "fp": 1,
+    "fn": 12,
+    "tn": 345,
+    "material_recall": 0.8846153846153846,
+    "n_material": 104,
+    "n": 450,
+    "n_pos": 104,
+    "roc_auc": 0.9693474877723433,
+    "pr_auc": 0.9499522676806514,
+    "ece": 0.028380931700800978,
+    "ci95": {
+     "precision": [
+      0.9629629629629629,
+      1.0
+     ],
+     "recall": [
+      0.8191489361702128,
+      0.9448836957306942
+     ],
+     "f1": [
+      0.8944319813352478,
+      0.9670355466130114
+     ],
+     "material_recall": [
+      0.8191489361702128,
+      0.9448836957306942
+     ],
+     "roc_auc": [
+      0.9456243028665091,
+      0.9881954488049988
+     ],
+     "pr_auc": [
+      0.9163338626661075,
+      0.9781943944504524
+     ]
+    }
+   }
+  },
+  "Instagram_h60": {
+   "model": "hgb(lr=0.06,leaves=31,min_leaf=40)",
+   "feature_set": "base+creator",
+   "calibrated": true,
+   "threshold": 0.46,
+   "features": [
+    "log_followers",
+    "log_views",
+    "log_vtf",
+    "share_v1",
+    "share_v2",
+    "share_v3",
+    "share_v5",
+    "share_v7",
+    "share_v10",
+    "share_v14",
+    "share_v21",
+    "share_v30",
+    "share_v45",
+    "rate_1_2",
+    "rate_2_3",
+    "rate_3_5",
+    "rate_5_7",
+    "rate_7_10",
+    "rate_10_14",
+    "rate_14_21",
+    "rate_21_30",
+    "rate_30_45",
+    "rate_45_60",
+    "accel_7_10",
+    "accel_10_14",
+    "accel_14_21",
+    "accel_21_30",
+    "accel_30_45",
+    "accel_45_60",
+    "jump_r7",
+    "jump_r14",
+    "jump_r30",
+    "jump_r60",
+    "jump_late_vs_early",
+    "lpv1",
+    "lpv3",
+    "lpv7",
+    "lpv14",
+    "lpv30",
+    "lpv60",
+    "like_dilution",
+    "comments_per_like",
+    "er",
+    "creator_rel_reach",
+    "creator_prior_posts"
+   ],
+   "train": {
+    "n": 2937,
+    "n_pos": 1215,
+    "cv_oof": {
+     "precision": 0.9023090586145648,
+     "recall": 0.8362139917695474,
+     "f1": 0.8680051260145236,
+     "tp": 1016,
+     "fp": 110,
+     "fn": 199,
+     "tn": 1612,
+     "material_recall": 0.904,
+     "n_material": 1000
+    },
+    "cv_roc_auc": 0.937496116583741,
+    "cv_pr_auc": 0.9338673328781616,
+    "cv_ece": 0.007958666959558892,
+    "in_sample_roc_auc": 1.0
+   },
+   "test": {
+    "precision": 0.9172932330827067,
+    "recall": 0.7261904761904762,
+    "f1": 0.8106312292358804,
+    "tp": 122,
+    "fp": 11,
+    "fn": 46,
+    "tn": 317,
+    "material_recall": 0.8872180451127819,
+    "n_material": 133,
+    "n": 496,
+    "n_pos": 168,
+    "roc_auc": 0.9010598141695703,
+    "pr_auc": 0.8875341713739844,
+    "ece": 0.05849935914633578,
+    "ci95": {
+     "precision": [
+      0.8671744791666667,
+      0.9615458015267175
+     ],
+     "recall": [
+      0.6256402815062033,
+      0.82693345323741
+     ],
+     "f1": [
+      0.736480117820324,
+      0.8723439954305298
+     ],
+     "material_recall": [
+      0.828540596094553,
+      0.9398608461452138
+     ],
+     "roc_auc": [
+      0.856936402419767,
+      0.9420643959629671
+     ],
+     "pr_auc": [
+      0.8420000168318577,
+      0.9333886152025316
+     ]
+    }
+   }
+  },
+  "Tiktok_h30": {
+   "model": "hgb(lr=0.06,leaves=31,min_leaf=40)",
+   "feature_set": "base+creator+jump+cnorm",
+   "calibrated": false,
+   "threshold": 0.51,
+   "features": [
+    "log_followers",
+    "log_views",
+    "log_vtf",
+    "share_v1",
+    "share_v2",
+    "share_v3",
+    "share_v5",
+    "share_v7",
+    "share_v10",
+    "share_v14",
+    "share_v21",
+    "rate_1_2",
+    "rate_2_3",
+    "rate_3_5",
+    "rate_5_7",
+    "rate_7_10",
+    "rate_10_14",
+    "rate_14_21",
+    "rate_21_30",
+    "accel_7_10",
+    "accel_10_14",
+    "accel_14_21",
+    "accel_21_30",
+    "jump_r7",
+    "jump_r14",
+    "jump_r30",
+    "jump_late_vs_early",
+    "lpv1",
+    "lpv3",
+    "lpv7",
+    "lpv14",
+    "lpv30",
+    "like_dilution",
+    "comments_per_like",
+    "shares_per_view",
+    "er",
+    "creator_rel_reach",
+    "creator_prior_posts",
+    "jump_age",
+    "jump_lpv_ratio",
+    "min_new_lpv_ratio",
+    "jump_lpv",
+    "share_v25",
+    "share_v28",
+    "late_new_lpv_ratio",
+    "creator_rel_lpv",
+    "creator_rel_share_v3",
+    "creator_rel_vtf"
+   ],
+   "train": {
+    "n": 1194,
+    "n_pos": 418,
+    "cv_oof": {
+     "precision": 0.9683698296836983,
+     "recall": 0.9521531100478469,
+     "f1": 0.9601930036188179,
+     "tp": 398,
+     "fp": 13,
+     "fn": 20,
+     "tn": 763,
+     "material_recall": 0.9521531100478469,
+     "n_material": 418
+    },
+    "cv_roc_auc": 0.9894502540324569,
+    "cv_pr_auc": 0.9876555946670538,
+    "cv_ece": 0.017776245973298264,
+    "in_sample_roc_auc": 1.0
+   },
+   "test": {
+    "precision": 0.9453125,
+    "recall": 0.9166666666666666,
+    "f1": 0.9307692307692308,
+    "tp": 121,
+    "fp": 7,
+    "fn": 11,
+    "tn": 619,
+    "material_recall": 0.9166666666666666,
+    "n_material": 132,
+    "n": 758,
+    "n_pos": 132,
+    "roc_auc": 0.977224319876077,
+    "pr_auc": 0.9532018685431966,
+    "ece": 0.022672541702559033,
+    "ci95": {
+     "precision": [
+      0.9017857142857143,
+      0.9827623047450633
+     ],
+     "recall": [
+      0.8682170542635659,
+      0.959738255033557
+     ],
+     "f1": [
+      0.896260354853582,
+      0.9623523154386214
+     ],
+     "material_recall": [
+      0.8682170542635659,
+      0.959738255033557
+     ],
+     "roc_auc": [
+      0.9596494556692687,
+      0.9908781038787828
+     ],
+     "pr_auc": [
+      0.9238894430760519,
+      0.9766323716698689
+     ]
+    }
+   }
+  },
+  "Instagram_h30": {
+   "model": "hgb(lr=0.03,leaves=31,min_leaf=20)",
+   "feature_set": "base+creator+jump+cnorm",
+   "calibrated": true,
+   "threshold": 0.46,
+   "features": [
+    "log_followers",
+    "log_views",
+    "log_vtf",
+    "share_v1",
+    "share_v2",
+    "share_v3",
+    "share_v5",
+    "share_v7",
+    "share_v10",
+    "share_v14",
+    "share_v21",
+    "rate_1_2",
+    "rate_2_3",
+    "rate_3_5",
+    "rate_5_7",
+    "rate_7_10",
+    "rate_10_14",
+    "rate_14_21",
+    "rate_21_30",
+    "accel_7_10",
+    "accel_10_14",
+    "accel_14_21",
+    "accel_21_30",
+    "jump_r7",
+    "jump_r14",
+    "jump_r30",
+    "jump_late_vs_early",
+    "lpv1",
+    "lpv3",
+    "lpv7",
+    "lpv14",
+    "lpv30",
+    "like_dilution",
+    "comments_per_like",
+    "er",
+    "creator_rel_reach",
+    "creator_prior_posts",
+    "jump_age",
+    "jump_lpv_ratio",
+    "min_new_lpv_ratio",
+    "jump_lpv",
+    "share_v25",
+    "share_v28",
+    "late_new_lpv_ratio",
+    "creator_rel_lpv",
+    "creator_rel_share_v3",
+    "creator_rel_vtf"
+   ],
+   "train": {
+    "n": 2590,
+    "n_pos": 859,
+    "cv_oof": {
+     "precision": 0.9013333333333333,
+     "recall": 0.7869615832363213,
+     "f1": 0.8402734617775015,
+     "tp": 676,
+     "fp": 74,
+     "fn": 183,
+     "tn": 1657,
+     "material_recall": 0.8656914893617021,
+     "n_material": 752
+    },
+    "cv_roc_auc": 0.9266484815347606,
+    "cv_pr_auc": 0.9113700299497421,
+    "cv_ece": 0.007503413888607066,
+    "in_sample_roc_auc": 1.0
+   },
+   "test": {
+    "precision": 0.9230769230769231,
+    "recall": 0.676923076923077,
+    "f1": 0.7810650887573964,
+    "tp": 132,
+    "fp": 11,
+    "fn": 63,
+    "tn": 495,
+    "material_recall": 0.825503355704698,
+    "n_material": 149,
+    "n": 701,
+    "n_pos": 195,
+    "roc_auc": 0.8759146650450997,
+    "pr_auc": 0.8485727576794041,
+    "ece": 0.04306724170838783,
+    "ci95": {
+     "precision": [
+      0.8732338475296221,
+      0.96875
+     ],
+     "recall": [
+      0.5908904619970194,
+      0.7684316318434276
+     ],
+     "f1": [
+      0.720173319327731,
+      0.8417804796802132
+     ],
+     "material_recall": [
+      0.7485999245981424,
+      0.89334375
+     ],
+     "roc_auc": [
+      0.8208389163271919,
+      0.9227292100443435
+     ],
+     "pr_auc": [
+      0.7909848391979015,
+      0.901958799590791
+     ]
+    }
+   }
+  },
+  "Tiktok_h14": {
+   "model": "hgb(lr=0.06,leaves=31,min_leaf=20)",
+   "feature_set": "base+creator+jump+cnorm",
+   "calibrated": false,
+   "threshold": 0.73,
+   "features": [
+    "log_followers",
+    "log_views",
+    "log_vtf",
+    "share_v1",
+    "share_v2",
+    "share_v3",
+    "share_v5",
+    "share_v7",
+    "share_v10",
+    "rate_1_2",
+    "rate_2_3",
+    "rate_3_5",
+    "rate_5_7",
+    "rate_7_10",
+    "rate_10_14",
+    "accel_7_10",
+    "accel_10_14",
+    "jump_r7",
+    "jump_r14",
+    "jump_late_vs_early",
+    "lpv1",
+    "lpv3",
+    "lpv7",
+    "lpv14",
+    "like_dilution",
+    "comments_per_like",
+    "er",
+    "creator_rel_reach",
+    "creator_prior_posts",
+    "jump_age",
+    "jump_lpv_ratio",
+    "min_new_lpv_ratio",
+    "jump_lpv",
+    "creator_rel_lpv",
+    "creator_rel_share_v3",
+    "creator_rel_vtf"
+   ],
+   "train": {
+    "n": 977,
+    "n_pos": 240,
+    "cv_oof": {
+     "precision": 0.9620253164556962,
+     "recall": 0.95,
+     "f1": 0.9559748427672956,
+     "tp": 228,
+     "fp": 9,
+     "fn": 12,
+     "tn": 728,
+     "material_recall": 0.95,
+     "n_material": 240
+    },
+    "cv_roc_auc": 0.9953867028493893,
+    "cv_pr_auc": 0.9884613186568605,
+    "cv_ece": 0.016567325744459255,
+    "in_sample_roc_auc": 1.0
+   },
+   "test": {
+    "precision": 0.9642857142857143,
+    "recall": 0.7941176470588235,
+    "f1": 0.8709677419354839,
+    "tp": 54,
+    "fp": 2,
+    "fn": 14,
+    "tn": 619,
+    "material_recall": 0.7941176470588235,
+    "n_material": 68,
+    "n": 689,
+    "n_pos": 68,
+    "roc_auc": 0.9687884815762053,
+    "pr_auc": 0.9060246194902399,
+    "ece": 0.02162921662277522,
+    "ci95": {
+     "precision": [
+      0.9032061369000787,
+      1.0
+     ],
+     "recall": [
+      0.6851788432267885,
+      0.8888888888888888
+     ],
+     "f1": [
+      0.799915254237288,
+      0.9275801493192797
+     ],
+     "material_recall": [
+      0.6851788432267885,
+      0.8888888888888888
+     ],
+     "roc_auc": [
+      0.9421009022575745,
+      0.9885146506519275
+     ],
+     "pr_auc": [
+      0.8384667784747798,
+      0.9584829097043179
+     ]
+    }
+   },
+   "fresh": {
+    "precision": 0.6923076923076923,
+    "recall": 0.9,
+    "f1": 0.7826086956521738,
+    "tp": 9,
+    "fp": 4,
+    "fn": 1,
+    "tn": 150,
+    "material_recall": 0.9,
+    "n_material": 10,
+    "n": 164,
+    "n_pos": 10,
+    "roc_auc": 0.975974025974026,
+    "pr_auc": 0.7988888888888889,
+    "ece": 0.034444125161082,
+    "ci95": {
+     "precision": [
+      0.4166666666666667,
+      0.9232142857142857
+     ],
+     "recall": [
+      0.6666666666666666,
+      1.0
+     ],
+     "f1": [
+      0.5454545454545455,
+      0.9411764705882353
+     ],
+     "material_recall": [
+      0.6666666666666666,
+      1.0
+     ],
+     "roc_auc": [
+      0.9292446704239158,
+      1.0
+     ],
+     "pr_auc": [
+      0.5494760959939531,
+      1.0
+     ]
+    }
+   }
+  },
+  "Instagram_h14": {
+   "model": "hgb(lr=0.06,leaves=31,min_leaf=40)",
+   "feature_set": "base+creator+jump+cnorm",
+   "calibrated": true,
+   "threshold": 0.54,
+   "features": [
+    "log_followers",
+    "log_views",
+    "log_vtf",
+    "share_v1",
+    "share_v2",
+    "share_v3",
+    "share_v5",
+    "share_v7",
+    "share_v10",
+    "rate_1_2",
+    "rate_2_3",
+    "rate_3_5",
+    "rate_5_7",
+    "rate_7_10",
+    "rate_10_14",
+    "accel_7_10",
+    "accel_10_14",
+    "jump_r7",
+    "jump_r14",
+    "jump_late_vs_early",
+    "lpv1",
+    "lpv3",
+    "lpv7",
+    "lpv14",
+    "like_dilution",
+    "comments_per_like",
+    "er",
+    "creator_rel_reach",
+    "creator_prior_posts",
+    "jump_age",
+    "jump_lpv_ratio",
+    "min_new_lpv_ratio",
+    "jump_lpv",
+    "creator_rel_lpv",
+    "creator_rel_share_v3",
+    "creator_rel_vtf"
+   ],
+   "train": {
+    "n": 2152,
+    "n_pos": 492,
+    "cv_oof": {
+     "precision": 0.907928388746803,
+     "recall": 0.7215447154471545,
+     "f1": 0.8040770101925254,
+     "tp": 355,
+     "fp": 36,
+     "fn": 137,
+     "tn": 1624,
+     "material_recall": 0.7995169082125604,
+     "n_material": 414
+    },
+    "cv_roc_auc": 0.9132156675482417,
+    "cv_pr_auc": 0.8592557323508251,
+    "cv_ece": 0.013847874973876885,
+    "in_sample_roc_auc": 1.0
+   },
+   "test": {
+    "precision": 0.8985507246376812,
+    "recall": 0.5740740740740741,
+    "f1": 0.7005649717514124,
+    "tp": 62,
+    "fp": 7,
+    "fn": 46,
+    "tn": 482,
+    "material_recall": 0.6867469879518072,
+    "n_material": 83,
+    "n": 597,
+    "n_pos": 108,
+    "roc_auc": 0.8439464515640385,
+    "pr_auc": 0.759158750415243,
+    "ece": 0.03714313533849185,
+    "ci95": {
+     "precision": [
+      0.8168955399061033,
+      0.9710144927536232
+     ],
+     "recall": [
+      0.4774337444240357,
+      0.6923076923076923
+     ],
+     "f1": [
+      0.6163503729706011,
+      0.7918781725888324
+     ],
+     "material_recall": [
+      0.5777699530516431,
+      0.8049173878835563
+     ],
+     "roc_auc": [
+      0.7857300888367852,
+      0.9016612088246325
+     ],
+     "pr_auc": [
+      0.6843619333587757,
+      0.8405050680156707
+     ]
+    }
+   },
+   "fresh": {
+    "precision": 0.75,
+    "recall": 0.7894736842105263,
+    "f1": 0.7692307692307692,
+    "tp": 15,
+    "fp": 5,
+    "fn": 4,
+    "tn": 155,
+    "material_recall": 0.8823529411764706,
+    "n_material": 17,
+    "n": 179,
+    "n_pos": 19,
+    "roc_auc": 0.8876644736842105,
+    "pr_auc": 0.792524711347444,
+    "ece": 0.06267815813953573,
+    "ci95": {
+     "precision": [
+      0.5,
+      0.9232142857142857
+     ],
+     "recall": [
+      0.5555555555555556,
+      1.0
+     ],
+     "f1": [
+      0.5624375,
+      0.909090909090909
+     ],
+     "material_recall": [
+      0.6875,
+      1.0
+     ],
+     "roc_auc": [
+      0.7691977902272019,
+      0.9971994631185808
+     ],
+     "pr_auc": [
+      0.5725225559357081,
+      0.9678279208998548
+     ]
+    }
+   }
+  }
+ }
+}

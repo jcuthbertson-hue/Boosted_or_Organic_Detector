@@ -124,7 +124,14 @@ def main():
                          "in_window": bool(pd.notna(x.days_pub_to_spend) and H and -3 <= x.days_pub_to_spend <= H - 2),
                          "scored": bool(H), "horizon": int(H) if H else None, "split": x.split if H else None,
                          "model_score": round(float(x.p), 3) if H else None, "flagged": bool(H and x.p >= thr)})
-        out["tag_gold_v2"] = rows
+        # aggregates only (no per-post rows in the public repo)
+        g = pd.DataFrame(rows)
+        out["tag_gold_v2"] = {pf_: {"tagged_in_bira": int(len(x)), "scored": int(x.scored.sum()),
+                                    "boost_inside_window": int((x.scored & x.in_window).sum()),
+                                    "flagged_inside_window": int((x.scored & x.in_window & x.flagged).sum()),
+                                    "flagged_outside_window": int((x.scored & ~x.in_window & x.flagged).sum()),
+                                    "scored_outside_window": int((x.scored & ~x.in_window).sum())}
+                              for pf_, x in g.groupby("platform")} if len(g) else {}
     out["llm_comparison"] = v1["llm_comparison"]
     json.dump(out, open("results/classification_metrics_v2.json", "w"), indent=1, default=float)
     for pf in PLATFORMS:

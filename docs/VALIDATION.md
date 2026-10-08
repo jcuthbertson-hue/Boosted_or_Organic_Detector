@@ -51,6 +51,26 @@ separate organic from paid views where evidence exists). The caveats below must 
 - **SQL logic check:** `sql/05` was run read-only in Snowflake on 2026-10-07; tier counts and pre-boost coverage are in
   `results/organic_coverage.json`.
 
+### Model v2 checks (2026-10-08)
+- **Pre-registration:** targets C1-C6 written before any v2 experiment (`docs/IMPROVEMENT_PLAN.md`); three amendments,
+  each logged before the held-out evaluation. All model, feature-set, calibration and threshold choices use train
+  cross-validation grouped by creator (192 candidate runs, `results/model_v2_selection.csv`).
+- **Held-out use:** locked test (posts 2026-07-01 to 09-09) second look; fresh posts (2026-09-10 to 09-24) one look.
+  Results are reported as measured, including the three Instagram misses (C1, C2, C4).
+- **Overfitting:** train in-sample AUC is 1.00 for every v2 model (boosted trees memorise train). Use the train-CV vs test
+  gap instead: TikTok 0.989 -> 0.977; Instagram 0.927 -> 0.876. Client-holdout CV: 0.977 / 0.918.
+- **Calibration:** isotonic calibration (creator-grouped CV on train) for the Instagram models, because their train
+  out-of-fold calibration error was above 0.05 (plan rule). Test calibration error 0.043 (Instagram), 0.023 (TikTok).
+- **Fresh posts are a small sample:** 10 TikTok and 19 Instagram paid posts, so C5 can only say the target is not ruled
+  out (precision intervals 42-92% and 50-92%).
+- **Label audit (Instagram):** missed large boosts look organic on public data and are mostly not confirmed by SocAPI
+  (3 of 26 test, 23 of 56 train). Instagram opt-in "paid" labels need an audit before the model target can be met.
+- **Measured organic:** Instagram posts with no paid evidence and opt-in >= 90% of public views are `ORGANIC_MEASURED`
+  (same cut as the organic training label). The offline run uses the latest mart totals for this ratio; `sql/05` uses
+  the latest read with both values.
+- **Join check:** the v2 Parquet has 41,484 rows, 41,484 unique (post, platform) keys; same keys as the v1 file, which
+  matched BIRA on every sampled key.
+
 ### Required caveats for stakeholders
 - Precision and recall are measured against labels that miss some boosts; treat precision as a lower bound.
 - Do not use "public - paid metric" per post. Use opt-in when it exists, else the pre-boost read x organic curve.
@@ -58,4 +78,5 @@ separate organic from paid views where evidence exists). The caveats below must 
 - TikTok organic after a boost is UNVERIFIED: opt-in includes Spark Ad views, so there is no organic truth. The curve
   method is back-tested only on unboosted TikTok posts.
 - Boosts that start before the first public read (12% of boosted Instagram posts, 24% of TikTok) cannot be separated.
+- Instagram model "organic" is not proof: on the locked test it misses 17% of large boosts. A model "paid" is 92% right.
 - YouTube cannot be reconciled: no ad-to-video link exists in the warehouse.

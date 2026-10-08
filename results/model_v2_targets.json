@@ -1,0 +1,148 @@
+{
+ "targets": {
+  "C1": {
+   "Tiktok": {
+    "precision": 0.9453125,
+    "material_recall": 0.9166666666666666,
+    "ci95": {
+     "precision": [
+      0.9017857142857143,
+      0.9827623047450633
+     ],
+     "material_recall": [
+      0.8682170542635659,
+      0.959738255033557
+     ]
+    },
+    "pass": true
+   },
+   "Instagram": {
+    "precision": 0.9230769230769231,
+    "material_recall": 0.825503355704698,
+    "ci95": {
+     "precision": [
+      0.8732338475296221,
+      0.96875
+     ],
+     "material_recall": [
+      0.7485999245981424,
+      0.89334375
+     ]
+    },
+    "pass": false
+   }
+  },
+  "C2": {
+   "Instagram": {
+    "f1": 0.7810650887573964,
+    "goal": 0.8,
+    "ci95": [
+     0.720173319327731,
+     0.8417804796802132
+    ],
+    "pass": false
+   },
+   "Tiktok": {
+    "f1": 0.9307692307692308,
+    "goal": 0.93,
+    "ci95": [
+     0.896260354853582,
+     0.9623523154386214
+    ],
+    "pass": true
+   }
+  },
+  "C3": {
+   "Instagram": {
+    "ece": 0.04306724170838783,
+    "pass": true
+   },
+   "Tiktok": {
+    "ece": 0.022672541702559033,
+    "pass": true
+   }
+  },
+  "C4": {
+   "coverage": {
+    "Instagram": 0.9984465470978675,
+    "Tiktok": 0.9978943822117409,
+    "all": 0.9981947378528904
+   },
+   "posts_in_base": 26035,
+   "untracked_note": "posts with no public read by day 7 are a data gap",
+   "same_posts": {
+    "Instagram": {
+     "posts": 556,
+     "f1_day30": 0.8098591549295775,
+     "f1_day14": 0.7052023121387283,
+     "gap": 0.10465684279084919
+    },
+    "Tiktok": {
+     "posts": 681,
+     "f1_day30": 0.8787878787878788,
+     "f1_day14": 0.8709677419354839,
+     "gap": 0.00782013685239491
+    }
+   },
+   "pass": false
+  },
+  "C5": {
+   "Instagram": {
+    "n": 179,
+    "n_pos": 19,
+    "precision": 0.75,
+    "material_recall": 0.8823529411764706,
+    "ci95": {
+     "precision": [
+      0.5,
+      0.9232142857142857
+     ],
+     "material_recall": [
+      0.6875,
+      1.0
+     ]
+    },
+    "pass": true
+   },
+   "Tiktok": {
+    "n": 164,
+    "n_pos": 10,
+    "precision": 0.6923076923076923,
+    "material_recall": 0.9,
+    "ci95": {
+     "precision": [
+      0.4166666666666667,
+      0.9232142857142857
+     ],
+     "material_recall": [
+      0.6666666666666666,
+      1.0
+     ]
+    },
+    "pass": true
+   }
+  },
+  "C6": {
+   "scores": 11,
+   "flagged": 11,
+   "distinct_posts": 9,
+   "posts_flagged_at_every_horizon": 9,
+   "by_platform": {
+    "Instagram": {
+     "posts": 8,
+     "scores": 10,
+     "flagged": 10,
+     "lowest_score": 0.549
+    },
+    "Tiktok": {
+     "posts": 1,
+     "scores": 1,
+     "flagged": 1,
+     "lowest_score": 0.99
+    }
+   },
+   "pass": true
+  }
+ },
+ "all_pass": false
+}

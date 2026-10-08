@@ -73,9 +73,15 @@ def main():
     for (pf, H), grp in preds[preds.tag == 1].groupby(["platform", "H"]):
         inwin = grp[grp.spend_day.between(-3, H - 2)]
         thr = m[f"{pf}_h{H}"]["threshold"]
-        g += [{"platform": pf, "H": int(H), "split": s, "score": round(float(p), 3), "flagged": bool(p >= thr)}
-              for s, p in zip(inwin.split, inwin.p)]
-    T["C6"] = {"posts": g, "pass": bool(g) and all(x["flagged"] for x in g)}
+        g += [{"psrk": k, "platform": pf, "H": int(H), "split": s, "score": round(float(p), 3), "flagged": bool(p >= thr)}
+              for k, s, p in zip(inwin.psrk, inwin.split, inwin.p)]
+    g = pd.DataFrame(g)
+    T["C6"] = {"scores": int(len(g)), "flagged": int(g.flagged.sum()) if len(g) else 0,
+               "distinct_posts": int(g.psrk.nunique()) if len(g) else 0,
+               "posts_flagged_at_every_horizon": int(g.groupby("psrk").flagged.all().sum()) if len(g) else 0,
+               "by_platform": {pf: {"posts": int(x.psrk.nunique()), "scores": int(len(x)), "flagged": int(x.flagged.sum()), "lowest_score": float(x.score.min())}
+                               for pf, x in g.groupby("platform")} if len(g) else {},
+               "pass": bool(len(g)) and bool(g.flagged.all())}
 
     out["all_pass"] = bool(all(v["pass"] if "pass" in v else all(x["pass"] for x in v.values()) for v in T.values()))
     json.dump(out, open("results/model_v2_targets.json", "w"), indent=1, default=float)

@@ -1,0 +1,75 @@
+{
+ "horizon_days": 30,
+ "threshold": 0.46,
+ "socapi_rule": "non-organic SocAPI plays > 25% of Instagram plays",
+ "splits": {
+  "train (out-of-fold)": {
+   "large boost, caught": {
+    "posts": 651,
+    "paid_share_optin_median": 0.95,
+    "likes_per_view_median": 0.0032307503678273663,
+    "views_per_follower_median": 3.2311793253484424,
+    "with_socapi": 405,
+    "socapi_paid_over_25pct": 250
+   },
+   "large boost, missed": {
+    "posts": 101,
+    "paid_share_optin_median": 0.5345,
+    "likes_per_view_median": 0.020033994955587234,
+    "views_per_follower_median": 0.2153648833721006,
+    "with_socapi": 56,
+    "socapi_paid_over_25pct": 23
+   },
+   "organic": {
+    "posts": 1731,
+    "paid_share_optin_median": 0.0,
+    "likes_per_view_median": 0.020007310259840365,
+    "views_per_follower_median": 0.13268376673532442,
+    "with_socapi": 1034,
+    "socapi_paid_over_25pct": 21
+   },
+   "smaller boost": {
+    "posts": 107,
+    "paid_share_optin_median": 0.267,
+    "likes_per_view_median": 0.020927799093128707,
+    "views_per_follower_median": 0.16918634393258125,
+    "with_socapi": 72,
+    "socapi_paid_over_25pct": 12
+   }
+  },
+  "locked test": {
+   "large boost, caught": {
+    "posts": 123,
+    "paid_share_optin_median": 0.965,
+    "likes_per_view_median": 0.001196029183112068,
+    "views_per_follower_median": 2.718838861911324,
+    "with_socapi": 122,
+    "socapi_paid_over_25pct": 58
+   },
+   "large boost, missed": {
+    "posts": 26,
+    "paid_share_optin_median": 0.6425000000000001,
+    "likes_per_view_median": 0.012948475856487725,
+    "views_per_follower_median": 0.08566693711309725,
+    "with_socapi": 26,
+    "socapi_paid_over_25pct": 3
+   },
+   "organic": {
+    "posts": 506,
+    "paid_share_optin_median": 0.0,
+    "likes_per_view_median": 0.0176583038948989,
+    "views_per_follower_median": 0.08915658729788878,
+    "with_socapi": 501,
+    "socapi_paid_over_25pct": 11
+   },
+   "smaller boost": {
+    "posts": 46,
+    "paid_share_optin_median": 0.272,
+    "likes_per_view_median": 0.018875370495428007,
+    "views_per_follower_median": 0.09590445755421273,
+    "with_socapi": 46,
+    "socapi_paid_over_25pct": 10
+   }
+  }
+ }
+}
