@@ -415,7 +415,7 @@ def targets(D):
     c6 = T["C6"]
     rows = [
         ["90%+ of large boosts caught, at 90%+ precision"] + pfv("C1", lambda v: f'{pct(v["material_recall"])} caught, {pct(v["precision"])} precise {ok(v["pass"])}'),
-        ["F1 (Instagram 0.80, TikTok 0.93)"] + pfv("C2", lambda v: f'{f2(v["f1"])} {ok(v["pass"])}'),
+        ["F1 (Instagram 0.80, TikTok 0.93)"] + pfv("C2", lambda v: f'{f3(v["f1"])} {ok(v["pass"])}'),
         ["Calibration error 0.05 or less"] + pfv("C3", lambda v: f'{f3(v["ece"])} {ok(v["pass"])}'),
         ["Fresh posts (Sep 10–24), day-14 model"] + pfv("C5", lambda v: (f'{pct(v["material_recall"])} caught, {pct(v["precision"])} precise '
                                                                        f'({v["n_pos"]} paid posts) '
@@ -429,7 +429,7 @@ def targets(D):
         + "".join(f'<div class="tgt-v"><span class="tgt-pf">{lab}</span><span>{v}</span></div>' for (p, lab), v in zip(PLATFORMS, r[1:]))
         + "</div>" for r in rows) + "</div>"
     why = ""
-    if D.get("AU") and C2.get("run") != "v21":
+    if D.get("AU") and C2.get("run") not in ("v21", "v22"):
         a = D["AU"]["splits"]["locked test"]; b = D["AU"]["splits"]["train (out-of-fold)"]
         mi, ca, og = a["large boost, missed"], a["large boost, caught"], a["organic"]
         why = (f'<div class="caveat"><span class="pill warn">Why Instagram misses</span><span>The {mi["posts"]} missed large boosts look organic: '
