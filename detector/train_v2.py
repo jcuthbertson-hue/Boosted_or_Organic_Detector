@@ -182,7 +182,7 @@ def develop(d, plan=None):
         key = ["H", "platform", "features", "model"]
         old = old[~old.set_index(key).index.isin(t.set_index(key).index)]
         t = pd.concat([old, t], ignore_index=True)
-    t.round(4).to_csv(path, index=False)
+    t.to_csv(path, index=False)          # full precision: picks must not depend on rounding
     best = t.loc[t.groupby(["H", "platform"]).cv_pr_auc.idxmax()]   # model AND feature set chosen on train CV
     print("\nBEST by CV PR-AUC:\n", best.round(3).to_string(index=False))
     return t
@@ -214,6 +214,12 @@ def evaluate(y, p, thr, meta):
     return m
 
 
+def pick(sel, H, pf):
+    """Best train-CV PR AUC; ties broken by ROC AUC, then names, so the pick never depends on row order."""
+    g = sel[(sel.H == H) & (sel.platform == pf)]
+    return g.sort_values(["cv_pr_auc", "cv_roc_auc", "features", "model"], ascending=[False, False, True, True], kind="mergesort").iloc[0]
+
+
 def final(d, evaluate_heldout=True):
     sel = pd.read_csv(f"{RUN['results']}_selection.csv")
     report = {"train_end": str(TRAIN_END.date()), "test": ["2026-07-01", str(TEST_END.date())],
@@ -222,7 +228,7 @@ def final(d, evaluate_heldout=True):
     preds = []
     for H in HORIZONS:
         for pf in PLATFORMS:
-            s = sel[(sel.H == H) & (sel.platform == pf)].sort_values("cv_pr_auc", ascending=False).iloc[0]
+            s = pick(sel, H, pf)
             fset = s.get("features", "base")
             X, meta = dataset(d, H, pf, fset)
             tr = (meta.pub < TRAIN_END).values
