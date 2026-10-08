@@ -22,13 +22,14 @@ def flags():
         dict(psrk="e", platform="Tiktok", boost_evidence="NO_PAID_EVIDENCE"),
         dict(psrk="f", platform="Tiktok", boost_evidence="NO_PAID_EVIDENCE"),
         dict(psrk="g", platform="Instagram", boost_evidence="NO_PAID_EVIDENCE"),
+        dict(psrk="h", platform="Instagram", boost_evidence="NO_PAID_EVIDENCE", views_private_latest=95000.0),
     ]
     return pd.DataFrame([{**base, **r} for r in rows])
 
 
 def test_classify():
-    scores = pd.DataFrame({"psrk": ["e", "f", "b"], "platform": ["Tiktok", "Tiktok", "Instagram"],
-                           "model_score": [0.9, 0.1, 0.99], "model_threshold": [0.53, 0.53, 0.44]})
+    scores = pd.DataFrame({"psrk": ["e", "f", "b", "h"], "platform": ["Tiktok", "Tiktok", "Instagram", "Instagram"],
+                           "model_score": [0.9, 0.1, 0.99, 0.95], "model_threshold": [0.53, 0.53, 0.44, 0.5]})
     d = classify(flags(), scores, dt.date(2026, 10, 7)).set_index("psrk")
     assert d.loc["a", "paid_status"] == "PAID_CONFIRMED" and d.loc["a", "organic_views_est"] == 8000
     assert d.loc["a", "organic_views_confidence"] == "measured"
@@ -43,9 +44,11 @@ def test_classify():
     assert d.loc["e", "paid_status"] == "PAID_PREDICTED" and np.isnan(d.loc["e", "organic_views_est"])
     assert d.loc["f", "paid_status"] == "ORGANIC_PREDICTED" and d.loc["f", "organic_views_est"] == 100000
     assert d.loc["g", "paid_status"] == "NOT_SCORED"
+    # opt-in shows 95% of public views are organic: measured organic beats a high model score
+    assert d.loc["h", "paid_status"] == "ORGANIC_MEASURED" and d.loc["h", "paid_basis"] == "evidence" and d.loc["h", "is_paid"] is False
     assert (d.paid_views_on_platform_est.dropna() >= 0).all()
     t = to_table(d.reset_index())
-    assert list(t.columns) == list(OUT_COLS) and len(t) == 7
+    assert list(t.columns) == list(OUT_COLS) and len(t) == 8
     assert t.POST_URL.notna().all()
 
 

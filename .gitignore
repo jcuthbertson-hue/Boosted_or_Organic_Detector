@@ -9,3 +9,4 @@ llm/harness/
 __pycache__/
 *.pyc
 outputs/
+results/model_v2_test_predictions.csv

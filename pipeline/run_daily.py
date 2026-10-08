@@ -31,6 +31,8 @@ STATUS = {"CONFIRMED_PAID_TAG": "PAID_CONFIRMED", "CONFIRMED_AD_LINK": "PAID_CON
           "LOGGED_PAID_DATE_ONLY": "PAID_LOGGED"}
 PAID = {"PAID_CONFIRMED", "PAID_MEASURED", "PAID_LOGGED", "PAID_PREDICTED"}
 MODEL_VERSION = "boost_detector_v1 (train < 2026-07-01)"
+MODEL_VERSION_V2 = "boost_detector_v2 (day-60 / day-30 / day-14 models, train < 2026-07-01)"
+OPTIN_ORGANIC = 0.90     # Instagram: opt-in organic views >= 90% of public views = measured organic (same cut as the N label)
 
 
 def score(features):
@@ -49,22 +51,73 @@ def score(features):
     return pd.concat(out) if out else pd.DataFrame(columns=cols)
 
 
+def score_v2(raw):
+    """Model v2: the longest horizon a post qualifies for wins (day 60, then day 30, then day 14).
+    raw = sql/11 (+ sql/12) output loaded with detector.features_v2.load. Each saved model names its feature set."""
+    from detector.train_v2 import features
+    out, cache = [], {}
+    for H in (60, 30, 14):
+        for platform in ["Tiktok", "Instagram"]:
+            path = f"models/boost_detector_v2_{platform.lower()}_h{H}.joblib"
+            if not os.path.exists(path):
+                continue
+            b = joblib.load(path)
+            key = (H, b.get("feature_set", "base"))
+            if key not in cache:
+                cache[key] = features(raw, H, key[1])
+            X, ok = cache[key]
+            m = ok & (raw.platform == platform)
+            if not m.any():
+                continue
+            g = raw.loc[m, ["psrk", "platform"]].copy()
+            g["model_score"] = b["model"].predict_proba(X.loc[m, b["features"]])[:, 1]
+            g["model_threshold"] = b["threshold"]
+            g["model_horizon"] = H
+            out.append(g)
+    cols = ["psrk", "platform", "model_score", "model_threshold", "model_horizon"]
+    if not out:
+        return pd.DataFrame(columns=cols)
+    s = pd.concat(out).sort_values("model_horizon", ascending=False)
+    return s.drop_duplicates(["psrk", "platform"])[cols]
+
+
+def add_model_note_v2(d, raw):
+    """Why there is no v2 score."""
+    seen = raw.set_index(["psrk", "platform"])
+    key = list(zip(d.psrk, d.platform))
+    a_min = pd.Series([seen.a_min.get(k, np.nan) for k in key], index=d.index)
+    pub = pd.to_datetime(d.pub, errors="coerce")
+    d["model_note"] = np.select(
+        [d.model_score.notna(), pub < pd.Timestamp("2025-01-01"), a_min.isna(), d.age_latest < 14, a_min > 10],
+        [None, "published before 2025", "no public read in days 0-60", "under 14 days of data", "first public read after day 10"],
+        "no public views or followers")
+    return d
+
+
 def classify(flags, scores, run_date):
     d = flags.merge(scores, on=["psrk", "platform"], how="left")
     status = d.boost_evidence.map(STATUS)
     no_ev = d.boost_evidence == "NO_PAID_EVIDENCE"
     status[no_ev & (d.model_score >= d.model_threshold)] = "PAID_PREDICTED"
     status[no_ev & (d.model_score < d.model_threshold)] = "ORGANIC_PREDICTED"
+    # measured organic: opt-in shows (almost) all public views are organic, so no boost added views. Beats the model.
+    # sql/05 optin_ratio = latest read with both values; older flag files only carry the latest totals
+    optin = pd.to_numeric(d["optin_ratio"], errors="coerce") if "optin_ratio" in d else \
+        d.views_private_latest / d.views_public_latest.where(d.views_public_latest > 0)
+    measured_org = no_ev & (d.platform == "Instagram") & (optin >= OPTIN_ORGANIC)
+    status[measured_org] = "ORGANIC_MEASURED"
     d["paid_status"] = status.fillna("NOT_SCORED")
     # evidence always wins; the model score is kept on every scored post for comparison, but decides only without evidence
-    d["paid_basis"] = np.select([~no_ev, d.paid_status.isin(["PAID_PREDICTED", "ORGANIC_PREDICTED"])], ["evidence", "model"], None)
+    d["paid_basis"] = np.select([~no_ev | measured_org, d.paid_status.isin(["PAID_PREDICTED", "ORGANIC_PREDICTED"])],
+                                ["evidence", "model"], None)
     d["is_paid"] = d.paid_status.map(lambda s: None if s == "NOT_SCORED" else s in PAID)
     d["boosted"] = d.paid_status.isin(PAID)
     e = estimate(d)
     d = pd.concat([d.reset_index(drop=True), e], axis=1)
     d.loc[d.paid_status == "NOT_SCORED", "organic_views_method"] = "public views (no paid record; model could not score)"
     d["paid_views_on_platform_est"] = (d.views_public_latest - d.organic_views_est).where(d.boosted).clip(lower=0)
-    d["model_version"] = np.where(d.model_score.notna(), MODEL_VERSION, None)
+    version = MODEL_VERSION_V2 if "model_horizon" in d else MODEL_VERSION
+    d["model_version"] = np.where(d.model_score.notna(), version, None)
     d["run_date"] = run_date
     d["updated_at"] = pd.Timestamp.now(tz="UTC").tz_localize(None)
     return d
@@ -77,7 +130,8 @@ OUT_COLS = {  # table column -> frame column
     "BOOST_START_DATE": "boost_start", "FIRST_SPEND_DATE": "first_spend", "AD_SPEND": "spend",
     "PAID_IMPRESSIONS_IG": "paid_impressions_ig", "PAID_IMPRESSIONS_FB": "paid_impressions_fb",
     "PAID_PLAYS_IG": "paid_plays_ig", "PAID_PLAYS_FB": "paid_plays_fb",
-    "MODEL_SCORE": "model_score", "MODEL_THRESHOLD": "model_threshold", "MODEL_VERSION": "model_version", "MODEL_NOTE": "model_note",
+    "MODEL_SCORE": "model_score", "MODEL_THRESHOLD": "model_threshold", "MODEL_HORIZON_DAYS": "model_horizon",
+    "MODEL_VERSION": "model_version", "MODEL_NOTE": "model_note",
     "VIEWS_PUBLIC_LATEST": "views_public_latest", "VIEWS_OPTIN_LATEST": "views_private_latest",
     "VIEWS_PUBLIC_PREBOOST": "views_before_first_spend", "PREBOOST_AGE_DAYS": "preboost_age_days",
     "POST_AGE_DAYS": "age_latest", "ORGANIC_VIEWS_EST": "organic_views_est", "ORGANIC_VIEWS_METHOD": "organic_views_method",
@@ -163,6 +217,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--flags", default="data/flags.csv", help="sql/05 output (offline mode)")
     ap.add_argument("--features", default="data/detector_dataset_v2.psv", help="sql/02 output, pipe-separated (offline mode)")
+    ap.add_argument("--features-v2", default=None, help="sql/11 output (model v2); replaces --features when given")
     ap.add_argument("--snowflake", action="store_true")
     ap.add_argument("--target-schema", default=None, help="DB.SCHEMA to MERGE into; omit to write CSV only")
     ap.add_argument("--run-date", default=str(dt.date.today()))
@@ -183,7 +238,12 @@ def main():
         flags = read_flags(a.flags)
         features = build(load(a.features))
 
-    d = add_model_note(classify(flags, score(features), pd.Timestamp(a.run_date).date()), features)
+    if a.features_v2:
+        from detector.features_v2 import load as load_v2
+        raw = load_v2(a.features_v2)
+        d = add_model_note_v2(classify(flags, score_v2(raw), pd.Timestamp(a.run_date).date()), raw)
+    else:
+        d = add_model_note(classify(flags, score(features), pd.Timestamp(a.run_date).date()), features)
     table = to_table(d)
     os.makedirs("results", exist_ok=True)
     os.makedirs("outputs", exist_ok=True)   # row-level output: git-ignored

@@ -50,3 +50,31 @@ out-of-fold precision is at least 0.90; if none reaches 0.90, take the max-F1 th
   Model family, settings and feature set are all picked by highest train CV PR AUC.
 - Calibration rule: if the picked model's train out-of-fold ECE is above 0.05, wrap it in isotonic calibration fitted
   with creator-grouped 5-fold CV on train, and pick the threshold on the calibrated out-of-fold scores.
+
+## Amendment 3 (2026-10-08, after round-1 train-only development, before any held-out evaluation)
+
+Round 1 (train CV, 96 fits): TikTok meets C1 on train CV at day 30 and day 14 (material recall 0.95 / 0.96 at precision
+>= 0.95). Instagram does not: material recall 0.86 (day 30) and 0.80 (day 14) at precision 0.90.
+
+Train-only error analysis (Instagram, day 30, out-of-fold):
+- The 107 missed material boosts look organic on every public signal: reach vs followers 0.28 (organic 0.13, caught
+  boosts 3.26), likes per view 0.020 (organic 0.020, caught boosts 0.003). Against the same creator's earlier posts,
+  likes per view do not drop (+0.06 log10), but a 58% paid share (their median) should halve them.
+- Independent check with SocAPI play counts: 12 of 34 missed opt-in-only boosts show > 25% non-organic plays (caught:
+  192 of 334; organic: 21 of 1,034). So some misses are real boosts that public data cannot see by day 30, and some
+  labels are doubtful.
+- 17 of 23 ad-linked boosts with < 20% paid share by day 30 start on days 15-28: the window closes before the lift.
+- False alarms are real organic posts: 2 of 38 with SocAPI data show paid plays.
+- No change tried on train CV moved Instagram material recall past 0.87: likes per new view during the biggest jump,
+  creator norms (likes per view, early share, reach), more sample weight on material boosts, or the lowest threshold
+  with precision >= 0.90.
+
+Changes (all decided on train CV only):
+1. Feature set `base+creator+jump+cnorm` (sql/12: likes per new view during the biggest view jump, jump age, views at
+   days 25 / 28; creator norms) joins the comparison. Pick rule unchanged: highest train CV PR AUC.
+2. A day-60 model (labels: paid evidence with first spend in [publish - 3, publish + 58] or Instagram opt-in / public
+   < 0.80 by day 60; organic rules as lab30, with opt-in by day 60). It is to catch boosts that start after day 21.
+   It is exploratory: C1-C6 stay on the day-30 and day-14 models. Its test result is reported apart. In the daily table
+   the longest horizon a post has wins (60, then 30, then 14).
+3. The pre-registered targets and material definition do not change. On the train-CV evidence above, Instagram C1 is
+   expected to fail; it is reported as measured.
