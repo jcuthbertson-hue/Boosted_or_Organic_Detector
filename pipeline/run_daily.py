@@ -32,6 +32,8 @@ STATUS = {"CONFIRMED_PAID_TAG": "PAID_CONFIRMED", "CONFIRMED_AD_LINK": "PAID_CON
 PAID = {"PAID_CONFIRMED", "PAID_MEASURED", "PAID_LOGGED", "PAID_PREDICTED"}
 MODEL_VERSION = "boost_detector_v1 (train < 2026-07-01)"
 MODEL_VERSION_V2 = "boost_detector_v2 (day-60 / day-30 / day-14 models, train < 2026-07-01)"
+# Instagram uses v2.1 (same method, trained on labels corrected for stale opt-in, plan amendment 4) when it exists
+V2_MODELS = {"Tiktok": ["models/boost_detector_v2"], "Instagram": ["models/boost_detector_v2_1", "models/boost_detector_v2"]}
 OPTIN_ORGANIC = 0.90     # Instagram: opt-in organic views >= 90% of public views = measured organic (same cut as the N label)
 
 
@@ -58,8 +60,9 @@ def score_v2(raw):
     out, cache = [], {}
     for H in (60, 30, 14):
         for platform in ["Tiktok", "Instagram"]:
-            path = f"models/boost_detector_v2_{platform.lower()}_h{H}.joblib"
-            if not os.path.exists(path):
+            path = next((f"{pre}_{platform.lower()}_h{H}.joblib" for pre in V2_MODELS[platform]
+                         if os.path.exists(f"{pre}_{platform.lower()}_h{H}.joblib")), None)
+            if path is None:
                 continue
             b = joblib.load(path)
             key = (H, b.get("feature_set", "base"))
@@ -73,8 +76,9 @@ def score_v2(raw):
             g["model_score"] = b["model"].predict_proba(X.loc[m, b["features"]])[:, 1]
             g["model_threshold"] = b["threshold"]
             g["model_horizon"] = H
+            g["model_version"] = f'boost_detector_{b.get("version", "v2")} (day {H}, train < {b.get("train_end", "2026-07-01")})'
             out.append(g)
-    cols = ["psrk", "platform", "model_score", "model_threshold", "model_horizon"]
+    cols = ["psrk", "platform", "model_score", "model_threshold", "model_horizon", "model_version"]
     if not out:
         return pd.DataFrame(columns=cols)
     s = pd.concat(out).sort_values("model_horizon", ascending=False)
@@ -118,8 +122,10 @@ def classify(flags, scores, run_date):
     d = pd.concat([d.reset_index(drop=True), e], axis=1)
     d.loc[d.paid_status == "NOT_SCORED", "organic_views_method"] = "public views (no paid record; model could not score)"
     d["paid_views_on_platform_est"] = (d.views_public_latest - d.organic_views_est).where(d.boosted).clip(lower=0)
-    version = MODEL_VERSION_V2 if "model_horizon" in d else MODEL_VERSION
-    d["model_version"] = np.where(d.model_score.notna(), version, None)
+    if "model_version" in d:            # v2 scoring names the model per post
+        d["model_version"] = d.model_version.where(d.model_score.notna(), None)
+    else:
+        d["model_version"] = np.where(d.model_score.notna(), MODEL_VERSION, None)
     d["run_date"] = run_date
     d["updated_at"] = pd.Timestamp.now(tz="UTC").tz_localize(None)
     return d

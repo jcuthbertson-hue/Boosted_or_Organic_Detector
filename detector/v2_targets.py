@@ -96,5 +96,7 @@ if __name__ == "__main__":
     import sys
     if "--fixed" in sys.argv:          # plan amendment 4: corrected Instagram labels, same v2 models
         main("results/model_v2_report_fixed.json", "results/model_v2_test_predictions_fixed.csv", "results/model_v2_targets_fixed.json")
+    elif "--v21" in sys.argv:          # production set: TikTok v2 + Instagram v2.1, corrected labels (detector/combine_v21.py)
+        main("results/model_v2_1_combined_report.json", "results/model_v2_1_combined_predictions.csv", "results/model_v2_1_targets.json")
     else:
         main()
