@@ -102,3 +102,21 @@ How it is used, in this order, and reported as such:
 2. Retrain (v2.1): Instagram candidates re-run on corrected train labels with train-only CV; the same pick rules.
    Its locked-test result is a third look and is labelled so. New posts (published after 2026-09-24) are the next clean test.
 3. Production: `MEASURED_OPTIN_GAP` and the opt-in organic estimate must use the last live opt-in read (sql/05 change).
+
+## Amendment 5 (2026-10-08, leak repair after an independent leakage audit)
+
+Found by the audit (train-only checks): (1) `followers` is the median over reads on days 0-60 (sql/11), so the day-14 and
+day-30 models see follower counts from after their window (features log_followers, log_vtf, creator_rel_vtf; 4 of the 6
+production models). Dropping the three features entirely lowers train-CV PR AUC by only 0.002-0.008, so the leak is
+small, but it is a leak. (2) Day-30 eligibility uses the last read up to day 60, not day 30.
+
+Repair, decided before any re-evaluation:
+- Followers at horizon H = median of reads on days 0..H (`sql/14_v2_horizon_followers.sql`); day-30 eligibility uses the
+  last read up to day 30.
+- Same model configurations as picked before (algorithm, settings, feature set: TikTok from v2 development, Instagram
+  from v2.1 development). Each model is refit on train; calibration rule and threshold rule unchanged (train out-of-fold).
+- Run name v2.2 (new files; v2 and v2.1 results stay as they are). Evaluated on the locked test (fourth look) and fresh
+  posts (third look); both before and after are reported.
+- Not changed: posts whose paid evidence starts after the model window have no label and are not evaluated. In the daily
+  table those posts get their status from the evidence, never from the model, so the evaluation matches where the model
+  is used.
