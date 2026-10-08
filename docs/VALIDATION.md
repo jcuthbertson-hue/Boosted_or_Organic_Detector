@@ -94,6 +94,12 @@ separate organic from paid views where evidence exists). The caveats below must 
   (381 posts): 88% of opt-in gaps but 67% of ad-linked boosts, including boosts that start on days 0-6. Of its 62 misses,
   25 are caught by the day-30 model on the same posts (the boost had only a few days to show). No feature tried closes
   the gap; treat a day-14 Instagram "organic" as provisional until the day-30 score exists.
+- **Month-to-month noise (training period only, `results/month_folds.json`):** train on earlier posts, score the next
+  month (Mar-Jun 2026), v2.2 configurations. F1 range: TikTok day 30 0.90-0.97, day 14 0.84-0.96; Instagram day 30
+  0.75-0.90, day 14 0.56-0.93. Correlation of training size with F1 is 0.00 to -0.67: more data did not help, so the
+  models were not retrained on the test months. The TikTok C2 gap (0.003) is far inside this range.
+- **Table rule for the Instagram day-14 gap:** a day-14 Instagram "organic" call gets `MODEL_NOTE` "provisional ..." until
+  the post reaches day 30 and the day-30 model re-scores it (518 posts in the 2026-10-07 export).
 - **Not evaluated by design:** posts whose paid evidence starts after the model window get no label (TikTok day 14:
   11% of posts with evidence). The daily table gives those posts their status from the evidence, never from the model.
 - **Join check:** the Parquet has 41,484 rows and 41,484 unique (post, platform) keys, the same keys as the v1 file.

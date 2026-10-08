@@ -90,8 +90,11 @@ def score_v2(raw, raw_hf=None):
     return s.drop_duplicates(["psrk", "platform"])[cols]
 
 
+PROVISIONAL_NOTE = "provisional: day-14 Instagram score, checked again at day 30 (the day-14 model misses more boosts)"
+
+
 def add_model_note_v2(d, raw):
-    """Why there is no v2 score."""
+    """Why there is no v2 score; for a day-14 Instagram 'organic' call, that it is provisional until the day-30 score."""
     seen = raw.set_index(["psrk", "platform"])
     key = list(zip(d.psrk, d.platform))
     a_min = pd.Series([seen.a_min.get(k, np.nan) for k in key], index=d.index)
@@ -100,6 +103,11 @@ def add_model_note_v2(d, raw):
         [d.model_score.notna(), pub < pd.Timestamp("2025-01-01"), a_min.isna(), d.age_latest < 14, a_min > 10],
         [None, "published before 2025", "no public read in days 0-60", "under 14 days of data", "first public read after day 10"],
         "no public views or followers")
+    # Instagram day-14 model: F1 0.80 vs 0.89 at day 30 on the same posts (C4 missed); a 'paid' call is still 88% right,
+    # but an 'organic' call can be a boost that has not shown yet. The daily run re-scores the post at day 30.
+    hz = d["model_horizon"] if "model_horizon" in d else pd.Series(np.nan, index=d.index)
+    prov = (d.platform == "Instagram") & (hz == 14) & (d.paid_status == "ORGANIC_PREDICTED")
+    d.loc[prov, "model_note"] = PROVISIONAL_NOTE
     return d
 
 

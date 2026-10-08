@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS {{TARGET_SCHEMA}}.PAID_CLASSIFICATION__POST (
   MODEL_SCORE                 FLOAT,                   -- 0-1, every post with >= 28 days of data; decides only when there is no evidence
   MODEL_THRESHOLD             FLOAT,
   MODEL_VERSION               VARCHAR,
-  MODEL_NOTE                  VARCHAR,                 -- why there is no model score (too young, too few reads, ...)
+  MODEL_NOTE                  VARCHAR,                 -- why there is no model score, or 'provisional: day-14 Instagram ...'
   -- views
   VIEWS_PUBLIC_LATEST         NUMBER,                  -- Nimble public (Instagram: organic + paid served on Instagram)
   VIEWS_OPTIN_LATEST          NUMBER,                  -- opt-in private (Instagram: organic only)

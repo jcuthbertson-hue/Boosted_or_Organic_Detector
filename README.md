@@ -63,7 +63,12 @@ each horizon (an independent audit found the earlier follower count looked past 
 | C6 Tagged paid posts with the boost inside the window are flagged | 1 of 1: **met** | 8 of 8: **met** (10 of 10 model scores, days 14 and 30) |
 
 Coverage (C4): 99.8% of posts at least 14 days old with a public read by day 7 get a score (target 85%).
-C1 and C2 sit within half a point of their lines on both platforms; that is inside the noise of one test set.
+C1 and C2 sit within half a point of their lines on both platforms; that is inside the noise of one test set. A
+month-by-month check inside the training period (`results/month_folds.json`; train on earlier posts, score the next
+month, Mar-Jun 2026) shows how large that noise is: TikTok day-30 F1 0.90-0.97, Instagram day-30 0.75-0.90, Instagram
+day-14 0.56-0.93; more training data did not raise F1. So the TikTok F1 gap (0.003) is not a real shortfall, and the
+Instagram day-14 gap is handled in the table: its "organic" calls carry `MODEL_NOTE` = "provisional: day-14 Instagram
+score ..." until the post's day-30 score (518 posts in the 2026-10-07 export).
 
 How the Instagram number moved (day 30, locked test, large boosts caught):
 
@@ -133,7 +138,7 @@ To put it in Snowflake, run `sql/10_sandbox_test_load.sql` in a worksheet: it lo
 | `IS_PAID` | True / False; empty when the post has no paid record and the model could not score it |
 | `PAID_BASIS` | `evidence` (tag, ad link, opt-in or SocAPI gap, opt-in >= 90% organic, manual date) or `model` |
 | `PAID_STATUS`, `BOOST_EVIDENCE` | status and the strongest proof tier |
-| `MODEL_SCORE`, `MODEL_THRESHOLD`, `MODEL_HORIZON_DAYS`, `MODEL_NOTE` | calibrated 0-1 score from the day-60, 30 or 14 model, cut-off from train, which model, reason when there is no score |
+| `MODEL_SCORE`, `MODEL_THRESHOLD`, `MODEL_HORIZON_DAYS`, `MODEL_NOTE` | 0-1 score from the day-60, 30 or 14 model, cut-off from train, which model; note = reason when there is no score, or "provisional" for a day-14 Instagram "organic" |
 | `ORGANIC_VIEWS_EST`, `ORGANIC_VIEWS_METHOD`, `ORGANIC_VIEWS_CONFIDENCE` | organic views: opt-in measured; opt-in at the freeze x organic curve when opt-in stopped updating; or pre-boost read x organic curve |
 
 ## How to run
@@ -157,6 +162,8 @@ python3 -m detector.combine_v21 && python3 -m detector.v2_targets --v21 && pytho
 python3 -m detector.optin_staleness_summary   # -> results/optin_staleness.json
 # leak repair (plan amendment 5; sql/14 -> data/v2_followers.psv): same configurations, refit
 python3 -m detector.train_v2 --v22 --final && python3 -m detector.v2_targets --v22 && python3 -m detector.evaluate_v2 --v22
+python3 -m detector.month_folds       # month-by-month noise and learning curve, training period only -> results/month_folds.json
+python3 -m detector.fresh2_eval --data data/fresh2 --data-date <date>   # next clean test (posts after 2026-09-24)
 python3 -m reconcile.analyze          # subtraction test on Instagram -> results/reconciliation.json
 python3 -m reconcile.analyze_tiktok   # TikTok + curve back-test -> results/reconciliation_tiktok.json
 python3 -m reports.build_report       # reports/boost_report.html

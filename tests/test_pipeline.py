@@ -102,7 +102,22 @@ def test_edge_inputs():
         assert raises(ValueError, classify, base.assign(boost_evidence=bad), pd.DataFrame(columns=["psrk", "platform"]), dt.date(2026, 10, 7))
 
 
+def test_provisional_day14_instagram():
+    from pipeline.run_daily import PROVISIONAL_NOTE, add_model_note_v2
+    f = flags().iloc[[6, 6, 4]].reset_index(drop=True)          # two Instagram rows, one TikTok row, no evidence
+    f["psrk"] = ["x1", "x2", "x3"]
+    sc = pd.DataFrame({"psrk": ["x1", "x2", "x3"], "platform": ["Instagram", "Instagram", "Tiktok"], "model_score": [0.1, 0.1, 0.1],
+                       "model_threshold": [0.5] * 3, "model_horizon": [14, 30, 14], "model_version": ["v2.2"] * 3})
+    d = classify(f, sc, dt.date(2026, 10, 7))
+    raw = pd.DataFrame({"psrk": ["x1", "x2", "x3"], "platform": ["Instagram", "Instagram", "Tiktok"], "a_min": [0, 0, 0]})
+    d = add_model_note_v2(d, raw).set_index("psrk")
+    assert d.loc["x1", "model_note"] == PROVISIONAL_NOTE            # Instagram, day 14, organic
+    assert d.loc["x2", "model_note"] is None or pd.isna(d.loc["x2", "model_note"])   # day 30: final
+    assert pd.isna(d.loc["x3", "model_note"])                       # TikTok day 14 met its target
+
+
 if __name__ == "__main__":
+    test_provisional_day14_instagram()
     test_edge_inputs()
     test_classify()
     test_estimate_never_above_public_and_never_below_preboost()

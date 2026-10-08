@@ -65,6 +65,7 @@ def load():
                 TG1=j("results/model_v2_1_targets.json") if os.path.exists("results/model_v2_1_targets.json") else None,
                 RL=j("results/model_v2_relabel.json") if os.path.exists("results/model_v2_relabel.json") else None,
                 ST=j("results/optin_staleness.json") if os.path.exists("results/optin_staleness.json") else None,
+                MF=j("results/month_folds.json") if os.path.exists("results/month_folds.json") else None,
                 AU=j("results/ig_miss_audit.json") if os.path.exists("results/ig_miss_audit.json") else None)
 
 
@@ -441,8 +442,20 @@ def targets(D):
                    "So some misses are real boosts that public data cannot see, and some opt-in labels are doubtful. Source: results/ig_miss_audit.json.")
                + '</span></div>')
     prod = C2.get("run") in ("v21", "v22")
+    swing = ""
+    if D.get("MF"):
+        mf = D["MF"]["summary"]
+        swing = (f'<div class="caveat"><span class="pill warn">Read the two misses</span><span>'
+                 f'TikTok F1 is 0.003 under its line, while it swings {f2(mf["Tiktok_h30"]["f1_min"])}–{f2(mf["Tiktok_h30"]["f1_max"])} '
+                 f'from month to month. Instagram day 14 is weaker by design: its “organic” calls are marked provisional until day 30.'
+                 + info(f'Month-by-month check inside the training period (train on earlier posts, score the next month, Mar–Jun 2026): '
+                        f'Instagram day 14 F1 {f2(mf["Instagram_h14"]["f1_min"])}–{f2(mf["Instagram_h14"]["f1_max"])}, day 30 '
+                        f'{f2(mf["Instagram_h30"]["f1_min"])}–{f2(mf["Instagram_h30"]["f1_max"])}; TikTok day 14 '
+                        f'{f2(mf["Tiktok_h14"]["f1_min"])}–{f2(mf["Tiktok_h14"]["f1_max"])}. More training data did not raise F1. '
+                        "Next clean test: posts published after 2026-09-24, from about 2026-10-21. Source: results/month_folds.json.")
+                 + '</span></div>')
     score = card("Did the model reach its targets?",
-                 lst + why + f'<p class="mini">Coverage: {pct(c4["coverage"]["all"], 1)} of posts at least 14 days old and tracked by day 7 get a score {ok(c4["coverage"]["all"] >= 0.85)}. '
+                 lst + why + swing + f'<p class="mini">Coverage: {pct(c4["coverage"]["all"], 1)} of posts at least 14 days old and tracked by day 7 get a score {ok(c4["coverage"]["all"] >= 0.85)}. '
                        f'Tagged paid posts flagged: {c6["posts_flagged_at_every_horizon"]} of {c6["distinct_posts"]} {ok(c6["pass"])}.</p>',
                  cls="span2", sub=(("Model v2.2" if C2.get("run") == "v22" else "TikTok v2, Instagram v2.1")
                                    + ", labels corrected for frozen opt-in. Locked test (posts 2026-07-01 to 09-09) and fresh posts"

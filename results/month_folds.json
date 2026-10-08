@@ -1,0 +1,242 @@
+{
+ "folds": [
+  {
+   "platform": "Instagram",
+   "H": 14,
+   "test_month": "2026-03",
+   "train_posts": 927,
+   "train_paid": 203,
+   "test_posts": 145,
+   "test_paid": 15,
+   "precision": 0.7,
+   "recall": 0.467,
+   "f1": 0.56,
+   "material_recall": 0.5
+  },
+  {
+   "platform": "Instagram",
+   "H": 14,
+   "test_month": "2026-04",
+   "train_posts": 1072,
+   "train_paid": 218,
+   "test_posts": 179,
+   "test_paid": 39,
+   "precision": 0.829,
+   "recall": 0.872,
+   "f1": 0.85,
+   "material_recall": 0.914
+  },
+  {
+   "platform": "Instagram",
+   "H": 14,
+   "test_month": "2026-05",
+   "train_posts": 1251,
+   "train_paid": 257,
+   "test_posts": 431,
+   "test_paid": 133,
+   "precision": 0.975,
+   "recall": 0.887,
+   "f1": 0.929,
+   "material_recall": 0.914
+  },
+  {
+   "platform": "Instagram",
+   "H": 14,
+   "test_month": "2026-06",
+   "train_posts": 1682,
+   "train_paid": 390,
+   "test_posts": 405,
+   "test_paid": 37,
+   "precision": 0.75,
+   "recall": 0.486,
+   "f1": 0.59,
+   "material_recall": 0.484
+  },
+  {
+   "platform": "Instagram",
+   "H": 30,
+   "test_month": "2026-03",
+   "train_posts": 1080,
+   "train_paid": 299,
+   "test_posts": 159,
+   "test_paid": 33,
+   "precision": 0.885,
+   "recall": 0.697,
+   "f1": 0.78,
+   "material_recall": 0.71
+  },
+  {
+   "platform": "Instagram",
+   "H": 30,
+   "test_month": "2026-04",
+   "train_posts": 1239,
+   "train_paid": 332,
+   "test_posts": 244,
+   "test_paid": 78,
+   "precision": 0.882,
+   "recall": 0.859,
+   "f1": 0.87,
+   "material_recall": 0.88
+  },
+  {
+   "platform": "Instagram",
+   "H": 30,
+   "test_month": "2026-05",
+   "train_posts": 1483,
+   "train_paid": 410,
+   "test_posts": 481,
+   "test_paid": 204,
+   "precision": 0.977,
+   "recall": 0.833,
+   "f1": 0.899,
+   "material_recall": 0.877
+  },
+  {
+   "platform": "Instagram",
+   "H": 30,
+   "test_month": "2026-06",
+   "train_posts": 1964,
+   "train_paid": 614,
+   "test_posts": 491,
+   "test_paid": 110,
+   "precision": 0.811,
+   "recall": 0.7,
+   "f1": 0.751,
+   "material_recall": 0.74
+  },
+  {
+   "platform": "Tiktok",
+   "H": 30,
+   "test_month": "2026-03",
+   "train_posts": 386,
+   "train_paid": 201,
+   "test_posts": 132,
+   "test_paid": 49,
+   "precision": 0.907,
+   "recall": 1.0,
+   "f1": 0.951,
+   "material_recall": 1.0
+  },
+  {
+   "platform": "Tiktok",
+   "H": 30,
+   "test_month": "2026-04",
+   "train_posts": 518,
+   "train_paid": 250,
+   "test_posts": 189,
+   "test_paid": 60,
+   "precision": 0.922,
+   "recall": 0.983,
+   "f1": 0.952,
+   "material_recall": 0.983
+  },
+  {
+   "platform": "Tiktok",
+   "H": 30,
+   "test_month": "2026-05",
+   "train_posts": 707,
+   "train_paid": 310,
+   "test_posts": 213,
+   "test_paid": 63,
+   "precision": 0.968,
+   "recall": 0.968,
+   "f1": 0.968,
+   "material_recall": 0.968
+  },
+  {
+   "platform": "Tiktok",
+   "H": 30,
+   "test_month": "2026-06",
+   "train_posts": 920,
+   "train_paid": 373,
+   "test_posts": 255,
+   "test_paid": 34,
+   "precision": 0.909,
+   "recall": 0.882,
+   "f1": 0.896,
+   "material_recall": 0.882
+  },
+  {
+   "platform": "Tiktok",
+   "H": 14,
+   "test_month": "2026-03",
+   "train_posts": 300,
+   "train_paid": 138,
+   "test_posts": 99,
+   "test_paid": 24,
+   "precision": 0.727,
+   "recall": 1.0,
+   "f1": 0.842,
+   "material_recall": 1.0
+  },
+  {
+   "platform": "Tiktok",
+   "H": 14,
+   "test_month": "2026-04",
+   "train_posts": 399,
+   "train_paid": 162,
+   "test_posts": 155,
+   "test_paid": 28,
+   "precision": 0.903,
+   "recall": 1.0,
+   "f1": 0.949,
+   "material_recall": 1.0
+  },
+  {
+   "platform": "Tiktok",
+   "H": 14,
+   "test_month": "2026-05",
+   "train_posts": 554,
+   "train_paid": 190,
+   "test_posts": 178,
+   "test_paid": 27,
+   "precision": 0.931,
+   "recall": 1.0,
+   "f1": 0.964,
+   "material_recall": 1.0
+  },
+  {
+   "platform": "Tiktok",
+   "H": 14,
+   "test_month": "2026-06",
+   "train_posts": 732,
+   "train_paid": 217,
+   "test_posts": 244,
+   "test_paid": 23,
+   "precision": 0.808,
+   "recall": 0.913,
+   "f1": 0.857,
+   "material_recall": 0.913
+  }
+ ],
+ "summary": {
+  "Instagram_h14": {
+   "months": 4,
+   "f1_min": 0.56,
+   "f1_max": 0.929,
+   "f1_median": 0.72,
+   "corr_train_size_f1": -0.14642755771686594
+  },
+  "Instagram_h30": {
+   "months": 4,
+   "f1_min": 0.751,
+   "f1_max": 0.899,
+   "f1_median": 0.825,
+   "corr_train_size_f1": -0.3475116579124469
+  },
+  "Tiktok_h14": {
+   "months": 4,
+   "f1_min": 0.842,
+   "f1_max": 0.964,
+   "f1_median": 0.903,
+   "corr_train_size_f1": 0.004982472959844183
+  },
+  "Tiktok_h30": {
+   "months": 4,
+   "f1_min": 0.896,
+   "f1_max": 0.968,
+   "f1_median": 0.9515,
+   "corr_train_size_f1": -0.6674710681601411
+  }
+ }
+}
