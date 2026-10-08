@@ -24,25 +24,31 @@ organic views? We tested every paid metric against Instagram opt-in views, which
    curve of unboosted posts: median error 11.5%, 77% of posts within +/-25%, never negative (117 boosted Instagram
    posts vs opt-in). 10-post campaign totals: 95% within +/-25% (subtraction: 59%). A read on day 14+ gives 8.6% error.
 4. **The paid team's post-ID tag is the best proof of paid** (`PAID_MEDIA_UNIFIED.ext_p3_organic_post_id`, Sep 2026+).
-   Our Meta ad-name rule finds 21 of 21 tagged posts. The TikTok Spark item-id link finds 0 of 3 tagged campaign posts.
-5. **Where no paid record exists, the model (v2.2) sits on the target lines on both platforms** (locked test of later
+   Our Meta ad-name rule finds 21 of 21 tagged Instagram posts. The TikTok Spark item-id link finds 6 of 9 tagged
+   TikTok posts, and 0 of the 3 that are tracked campaign posts.
+5. **Where no paid record exists, the model (v2.2) meets 4 of 6 goals set before the test** (locked test of later
    posts, day-30 model). TikTok: 91.6% of large boosts caught at 93.8% precision, F1 0.927 (target 0.93). Instagram:
    90.4% caught at 93.9% precision (target 90%; 95% interval 83-96%), F1 0.89. The weak spot is the day-14 Instagram
-   model (F1 0.80 vs 0.89 at day 30). The first Instagram result (83%) was held down by bad labels: the opt-in count
-   stopped updating on 2,177 of 6,030 Instagram posts while public views kept growing, so organic posts looked paid.
+   model (F1 0.797 vs 0.892 at day 30, same 505 posts; goal: within 0.05). The first Instagram result (83%) was held
+   down by bad labels: the opt-in count stopped updating on 2,177 of 6,030 Instagram posts (published 2025 or later)
+   while public views kept growing, so organic posts looked paid.
    The same fix corrects the daily table: 706 posts lose a false "measured paid" tag.
 
 **Caveat that can change the decision:** TikTok organic after a boost is UNVERIFIED. TikTok opt-in includes Spark Ad
 views, so there is no organic truth. The curve method passes a back-test on unboosted TikTok posts only.
 
-### Coverage today (all boosted campaign posts in BIRA)
+### Coverage today (all boosted campaign posts in the daily table, data read 2026-10-07)
 
-| | Instagram (2,946 posts) | TikTok (1,093 posts) |
+| | Instagram (2,488 posts) | TikTok (1,093 posts) |
 |---|---|---|
-| Organic measured (opt-in) | 71% | 0% |
-| Estimate, high or medium confidence (pre-boost read on day 7+) | 12% | 45% |
-| Estimate, low confidence (read before day 7) | 5% | 31% |
-| Not separable (boosted before the first read) | 12% | 24% |
+| Organic measured (opt-in that kept updating) | 35% | 0% |
+| Opt-in until it stopped updating, then organic curve | 31% | 0% |
+| Estimate, high or medium confidence (pre-boost read on day 7+) | 14% | 45% |
+| Estimate, low confidence (read before day 7) | 6% | 31% |
+| Not separable (boosted before the first read) | 14% | 24% |
+
+Source: `results/organic_coverage.json` (`python3 -m reconcile.coverage_from_table`). The first version counted frozen
+opt-in as measured (71% of 2,946 Instagram posts); the frozen opt-in fix (plan amendment 4) moved those posts out.
 
 ## Detector results: targets set before the test
 
@@ -188,7 +194,7 @@ python3 -m pipeline.run_daily --flags data/flags.csv --features-v2 data/v2_raw.p
 | `sql/13_optin_staleness.sql` | Where the Instagram opt-in count stopped updating (label and evidence fix) |
 | `sql/14_v2_horizon_followers.sql` | Follower count known at day 14 / 30 / 60 (v2.2 leak repair) |
 | `docs/IMPROVEMENT_PLAN.md` | v2 targets and every change, logged before the held-out evaluation |
-| `reconcile/` | Subtraction test, TikTok check, organic curve, production organic estimate |
+| `reconcile/` | Subtraction test, TikTok check, organic curve, production organic estimate, coverage from the daily table |
 | `detector/` | Features, train / test protocol, full evaluation, scoring |
 | `pipeline/`, `tests/` | Daily run scaffold and its offline tests |
 | `reports/` | HTML report builder and output |

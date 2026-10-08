@@ -46,10 +46,12 @@ separate organic from paid views where evidence exists). The caveats below must 
 - **Production function check:** `reconcile/estimate.py` on the 117 boosted posts reproduces the analysis
   (11.5% typical error, 77% within 25%). Confidence tiers: high 8.6% (65 posts), medium 12.5% (20), low 30.5% (32).
 - **Gold check (post-ID tag, `sql/08`):** the Meta ad-name rule finds 21 of 21 tagged posts; the TikTok Spark link
-  finds 0 of 3 tagged campaign posts. One TikTok test "false positive" is a tagged paid post (label error, model right).
+  finds 6 of 9 tagged TikTok posts and 0 of the 3 that are tracked campaign posts. In v1, one TikTok test "false positive"
+  was a tagged paid post (label error, model right); since v2 the labels count a post-ID tag as paid.
 - **Cluster bootstrap:** classification intervals resample whole creators (1,000 draws), so they are wider than row bootstrap.
-- **SQL logic check:** `sql/05` was run read-only in Snowflake on 2026-10-07; tier counts and pre-boost coverage are in
-  `results/organic_coverage.json`.
+- **SQL logic check:** `sql/05` was run read-only in Snowflake on 2026-10-07. Tier counts and pre-boost coverage are in
+  `results/organic_coverage.json`, rebuilt from the daily table after the frozen opt-in fix
+  (`python3 -m reconcile.coverage_from_table`).
 
 ### Model v2 checks (2026-10-08)
 - **Pre-registration:** targets C1-C6 written before any v2 experiment (`docs/IMPROVEMENT_PLAN.md`). Amendments 1-3 were
@@ -110,7 +112,7 @@ separate organic from paid views where evidence exists). The caveats below must 
   The 1.14 factor from phase 1 is retired: impressions match best (1.07x), but subtraction still fails per post.
 - TikTok organic after a boost is UNVERIFIED: opt-in includes Spark Ad views, so there is no organic truth. The curve
   method is back-tested only on unboosted TikTok posts.
-- Boosts that start before the first public read (12% of boosted Instagram posts, 24% of TikTok) cannot be separated.
+- Boosts that start before the first public read (14% of boosted Instagram posts, 24% of TikTok) cannot be separated.
 - Instagram model (v2.2, corrected labels): it misses about 10% of large boosts at day 30 and more at day 14 (F1 0.79);
   a model "paid" is 94% right. Treat a day-14 Instagram "organic" as provisional until the day-30 score exists.
 - YouTube cannot be reconciled: no ad-to-video link exists in the warehouse.

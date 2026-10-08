@@ -290,19 +290,21 @@ def progress(rows, fmt=pct, goal=None):
 
 
 def dots(V):
-    seg = [("measured_optin", "Measured (opt-in)", "m"), ("est_high", "Estimate, high", "h"), ("est_medium", "Estimate, medium", "md"),
+    seg = [("measured_optin", "Measured (opt-in)", "m"), ("optin_frozen", "Opt-in until it froze, then estimate", "mf"),
+           ("est_high", "Estimate, high", "h"), ("est_medium", "Estimate, medium", "md"),
            ("est_low", "Estimate, low", "l"), ("not_separable", "Not separable", "x")]
     out = []
     for p, lab in PLATFORMS:
         t = V["totals"][p]
-        counts = [round(100 * t[k] / t["posts"]) for k, _, _ in seg]
+        counts = [round(100 * t.get(k, 0) / t["posts"]) for k, _, _ in seg]
         counts[0] += 100 - sum(counts)
         cells = []
         for (k, name, cls), n in zip(seg, counts):
-            tip = f"{lab}: {name}: {t[k]:,} of {t['posts']:,} paid posts ({pct(t[k] / t['posts'])})"
+            tip = f"{lab}: {name}: {t.get(k, 0):,} of {t['posts']:,} paid posts ({pct(t.get(k, 0) / t['posts'])})"
             cells += [f'<i class="dt {cls}" data-tip="{esc(tip)}"></i>'] * n
         out.append(f'<div class="dm"><span class="dm-lab">{lab}<small>{t["posts"]:,} paid posts</small></span><div class="dm-grid">{"".join(cells)}</div></div>')
-    return "".join(out) + legend([(c, n) for _, n, c in seg])
+    shown = [s for s in seg if any(V["totals"][p].get(s[0], 0) for p, _ in PLATFORMS)]
+    return "".join(out) + legend([(c, n) for _, n, c in shown])
 
 
 def dot_range(R):
@@ -347,20 +349,21 @@ def overview(D):
                '<span class="chip" tabindex="0" data-tip="Run the ad as a separate dark post, not as a boost of the creator\'s own post. '
                'The creator\'s post then shows organic views only, which gives TikTok an organic number to check against.">TikTok dark-post test</span> '
                'to check TikTok organic.</div></div>',
-             cls="span2 hero", sub="Organic error of “public − paid impressions”, by paid share of public views",
+             cls="span2 hero", sub="Paid Instagram posts: organic error of “public − paid impressions”, by paid share of public views",
              tip=f"Instagram, {R['postflight_posts']} paid posts, one read per post after the ads ended. Truth = opt-in views (organic only). Error = median absolute error.",
              data=table(["Paid share of public", "Posts", "Typical organic error"],
                         [[esc(r["paid_share"]), r["posts"], pct(r["median_abs_error"])] for r in R["error_by_paid_share"]]))
     b = card("Use the views before the boost",
              f'<div class="big">{pct(curve["median_abs_error"], 1)}</div><p class="big-sub">typical organic error, never negative</p>'
              + '<p class="mini">Posts within ±25% of true organic</p>'
-             + progress([("Pre-boost views × organic growth", curve["within_25pct"], "solid",
+             + progress([(f"Pre-boost views × organic growth ({curve['posts']} posts)", curve["within_25pct"], "solid",
                           f"{pct(curve['within_25pct'])} of {curve['posts']} posts within ±25%; typical error {pct(curve['median_abs_error'], 1)}"),
-                         ("Public − paid impressions", best["within_25pct"], "hatch-n",
+                         (f"Public − paid impressions ({best['posts']} posts)", best["within_25pct"], "hatch-n",
                           f"{pct(best['within_25pct'])} of {best['posts']} posts within ±25%; typical error {pct(best['median_abs_error'])}; {pct(best['negative_organic'])} negative"),
-                         ("SocAPI total − paid", soc["within_25pct"], "hatch-n",
+                         (f"SocAPI total − paid ({soc['posts']} posts)", soc["within_25pct"], "hatch-n",
                           f"{pct(soc['within_25pct'])} of {soc['posts']} posts within ±25%; typical error {pct(soc['median_abs_error'])}")]),
-             tip="Take the last public read before the first ad day, then grow it by the median curve of unpaid posts. Checked against opt-in views on 117 paid Instagram posts.",
+             sub="Instagram, checked against opt-in",
+             tip=f"Take the last public read before the first ad day, then grow it by the median curve of unpaid posts. Checked against opt-in views on {curve['posts']} paid Instagram posts.",
              data=table(["Method", "Posts", "Typical error", "Within ±25%", "Negative"],
                         [[esc(n), rec[k]["posts"], pct(rec[k]["median_abs_error"]), pct(rec[k]["within_25pct"]), pct(rec[k]["negative_organic"])]
                          for k, n in [("pre-boost read x organic curve (no fitting on these posts)", "Pre-boost × curve"),
@@ -368,14 +371,20 @@ def overview(D):
                                       ("SocAPI total - FB cross-post - IG impressions - FB video plays (best mix)", "SocAPI total − paid")]]))
     c = card("Normal organic growth", curve_chart(D["curves"]) + legend([("c-acc", "Instagram"), ("c-n4", "TikTok")]),
              sub="Share of day-120 views by post age, unpaid posts",
-             tip="The method grows the pre-boost views along this curve. Built from unpaid posts only (Instagram 1,505, TikTok 608).",
+             tip="The method grows the pre-boost views along this curve. Built from unpaid posts only: up to "
+                 + " and ".join(f'{max(n for _, _, n in D["curves"][p]):,} {lab}' for p, lab in PLATFORMS) + " posts per day of age.",
              data=table(["Day", "Instagram", "TikTok"],
                         [[a, pct(v, 1), pct(D["curves"]["Tiktok"][i][1], 1)] for i, (a, v, _) in enumerate(D["curves"]["Instagram"]) if a in (0, 1, 3, 7, 14, 30, 60, 90, 120)]))
     d = card("Organic we can measure",
-             f'<div class="big sm">{pct(ig_cov["measured_optin"] / ig_cov["posts"])}</div><p class="big-sub">of paid Instagram posts have opt-in data, which gives true organic views</p>' + dots(V),
-             tip="Each dot is 1% of paid posts in BIRA (all dates). Confidence of the estimate depends on how late the pre-boost read is: day 14+ high, day 7–13 medium, before day 7 low.",
-             data=table(["Platform", "Measured", "High", "Medium", "Low", "Not separable"],
-                        [[lab] + [f'{V["totals"][p][k]:,}' for k in ("measured_optin", "est_high", "est_medium", "est_low", "not_separable")] for p, lab in PLATFORMS]))
+             f'<div class="big sm">{pct(ig_cov["measured_optin"] / ig_cov["posts"])}</div><p class="big-sub">of paid Instagram posts have opt-in that gives true organic views. '
+             + (f'Another {pct(ig_cov["optin_frozen"] / ig_cov["posts"])} have opt-in until it stopped updating.' if ig_cov.get("optin_frozen") else "")
+             + '</p>' + dots(V),
+             tip="Each dot is 1% of paid posts in the daily table (all publish dates). Estimate = pre-boost public read × organic curve; its "
+                 "confidence depends on how late that read is: day 14+ high, day 7–13 medium, before day 7 low. Opt-in that stopped updating is "
+                 "used up to the freeze, then grown along the organic curve.",
+             data=table(["Platform", "Measured", "Opt-in, then estimate", "High", "Medium", "Low", "Not separable"],
+                        [[lab] + [f'{V["totals"][p].get(k, 0):,}' for k in ("measured_optin", "optin_frozen", "est_high", "est_medium", "est_low", "not_separable")]
+                         for p, lab in PLATFORMS]))
     tt, im = P["Tiktok"]["test_metrics"], P["Instagram"]["test_metrics"]
     run, C2_ = (D["C2"] or {}).get("run"), D["C2"] or {}
     tip = " ".join(f'{lab}: {m["tp"]} of {m["tp"] + m["fp"]} flags are paid ({pct(m["precision"], 1)}).' for lab, m in (("TikTok", tt), ("Instagram", im)))
@@ -408,16 +417,17 @@ def findings(D):
     items = [
         ("Paid impressions are the paid number that matches the extra views on the platform.",
          f"Instagram: public − opt-in = {times(ig['Impressions']['median'])} paid Instagram impressions ({ig['Impressions']['n']} posts). "
-         f"Facebook: SocAPI extra plays = {times(fb['Video plays (starts)']['median'])} paid Facebook plays (20 posts). View-type metrics are 5–110× too small."),
+         f"Facebook: SocAPI extra plays = {times(fb['Video plays (starts)']['median'])} paid Facebook plays (20 posts). On the Instagram side, view-type metrics are 5–110× too small."),
         ("Subtracting paid views from total views does not give a reliable organic number for one post.",
-         f"Paid is a median {pct(R['paid_share_of_public']['median'])} of public views, so a small paid error becomes a large organic error. "
+         f"On paid Instagram posts, paid is a median {pct(R['paid_share_of_public']['median'])} of public views, so a small paid error becomes a large organic error. "
          f"Best case: {pct(best['median_abs_error'])} typical error, {pct(best['negative_organic'])} of posts negative."),
         ("What works: take the views just before the boost and grow them at the normal organic rate.",
          f"{pct(curve['median_abs_error'], 1)} typical error, {pct(curve['within_25pct'])} of posts within ±25%, never negative ({curve['posts']} posts vs opt-in). "
          f"10-post campaign totals: {pct(cl['pre-boost read x organic curve']['within_25pct'])} within ±25%."),
         ("The post-ID tag in the paid table is the best proof that a post is paid.",
-         f"Our Meta ad-name rule finds {g['Instagram']['found_by_link_rule_all']} of {g['Instagram']['tagged']} tagged posts. "
-         f"The TikTok Spark link finds {g['Tiktok']['found_by_link_rule_tracked']} of {g['Tiktok']['tracked_in_bira']} tagged campaign posts."),
+         f"Our Meta ad-name rule finds {g['Instagram']['found_by_link_rule_all']} of {g['Instagram']['tagged']} tagged Instagram posts. "
+         f"The TikTok Spark link finds {g['Tiktok']['found_by_link_rule_all']} of {g['Tiktok']['tagged']} tagged TikTok posts, and "
+         f"{g['Tiktok']['found_by_link_rule_tracked']} of the {g['Tiktok']['tracked_in_bira']} that are tracked campaign posts."),
         ("Where no paid record exists, the model flags paid posts well.",
          f"Locked test: TikTok F1 {f2(tt['f1'])}, AUC {f2(tt['roc_auc'])}. Instagram F1 {f2(im['f1'])}, AUC {f2(im['roc_auc'])}, precision {f2(im['precision'])}."),
     ]
@@ -434,7 +444,8 @@ def findings(D):
     lis = "".join(f'<li><span class="n">{i + 1}</span><span>{tipped(t, tip)}</span></li>' for i, (t, tip) in enumerate(items))
     nxt = [("Tag every boosted ad with the post ID.", "The tag gives an exact match on every platform."),
            ("Wait 7–14 days after publish before a boost.",
-            f"A pre-boost read on day 14+ gives {pct(R['production_function_by_confidence']['high']['median_abs_error'], 1)} typical error; before day 7, {pct(R['production_function_by_confidence']['low']['median_abs_error'])}."),
+            f"Instagram, checked against opt-in: a pre-boost read on day 14+ gives {pct(R['production_function_by_confidence']['high']['median_abs_error'], 1)} typical error; "
+            f"before day 7, {pct(R['production_function_by_confidence']['low']['median_abs_error'])}."),
            ("If a boost starts on day 0, use a dark post or get the creator to opt in.",
             f"Today {pct(V['totals']['Instagram']['not_separable'] / V['totals']['Instagram']['posts'])} of paid Instagram posts and "
             f"{pct(V['totals']['Tiktok']['not_separable'] / V['totals']['Tiktok']['posts'])} of paid TikTok posts cannot be separated.")]
@@ -481,7 +492,7 @@ def scorecard(D):
     rows = [grp(f"Test posts, {day(t0)} – {day(t1)} · day-30 model",
                 f"Locked test: {tm['Instagram']['n']:,} Instagram posts ({tm['Instagram']['n_pos']} paid) and {tm['Tiktok']['n']:,} TikTok posts "
                 f"({tm['Tiktok']['n_pos']} paid), published {t0} to {t1}. No test post was used to train or tune the model. "
-                "The test has been used four times (v2, v2 with fixed labels, v2.1, v2.2), so it cannot separate small differences.")]
+                + ("This is the fourth look at the test (plan amendment 5), so it cannot separate small differences." if v22 else ""))]
     cells = []
     for p, lab in PLATFORMS:
         v, n = c1[p], P2[p]["material"]["test_material_posts"]
@@ -537,7 +548,8 @@ def scorecard(D):
     # 3. fresh posts, day-14 model
     rows.append(grp(f"New posts, {day(f0)} – {day(f1)} · day-14 model · small sample",
                     "Posts no one had looked at: " + " and ".join(f"{c5[p]['n']} {lab} ({c5[p]['n_pos']} paid)" for p, lab in PLATFORMS if "n" in c5[p])
-                    + ". Goal C5: the 90% line falls inside the 95% range. With so few paid posts the ranges are wide, so this check is weak."))
+                    + ". Goal C5: the 90% line falls inside the 95% range. With so few paid posts the ranges are wide, so this check is weak."
+                    + (" This is the third look at these posts." if v22 else "")))
     for key, name, help_, what in (("material_recall", "Large boosts caught", "Same measure as above, on new posts", "large boosts caught"),
                                    ("precision", "Flags that are really paid", "Same measure as above, on new posts", "flags that are really paid")):
         cells = []
@@ -611,8 +623,9 @@ def scorecard(D):
     score = card("Did the model hit its goals?", f'<div class="sc">{summ}<div class="sc-wrap">{sc_table}</div></div>', cls="span3",
                  sub=("Model v2.2. " if v22 else "") + "Six goals, written down before testing. Hover or tap a number to see what it means.",
                  tip="Goals C1–C6 and their rules are in docs/IMPROVEMENT_PLAN.md. Labels are corrected for frozen opt-in counts.",
-                 data=table(["Goal", "Platform", "Value", "95% range", "Met"],
-                            [[k, lab, f3(T[k][p].get("material_recall", T[k][p].get("f1", T[k][p].get("ece", float("nan"))))),
+                 data=table(["Goal", "Platform", "Metric", "Value", "95% range", "Met"],
+                            [[k, lab, ("large boosts caught" if "material_recall" in T[k][p] else "F1" if "f1" in T[k][p] else "calibration error"),
+                              f3(T[k][p].get("material_recall", T[k][p].get("f1", T[k][p].get("ece", float("nan"))))),
                               "–".join(f3(x) for x in T[k][p]["ci95"]["material_recall"]) if isinstance(T[k][p].get("ci95"), dict) else
                               ("–".join(f3(x) for x in T[k][p]["ci95"]) if isinstance(T[k][p].get("ci95"), list) else ""),
                               "yes" if T[k][p]["pass"] else "no"]
@@ -647,7 +660,8 @@ def targets(D):
                           f'In use: {pct(a2["material_recall"], 1)} caught (95% range {pct(a2["ci95"]["material_recall"][0])}–{pct(a2["ci95"]["material_recall"][1])}), '
                           f'{pct(a2["precision"], 1)} of flags really paid.'
                           + (" v2 and v2.1 used the follower count from the data pull, which a live score would not know yet. "
-                             "v2.2 uses the count on the scoring day, so its result is the honest one." if v22 else ""))], goal=0.90)
+                             "v2.2 uses the count on the scoring day, so its result is the honest one." if v22 else ""))],
+                       fmt=lambda x: pct(x, 1), goal=0.90)
         comp = card("Why Instagram improved: cleaner labels", bars
                     + f'<p class="mini">On {st["stale_at_latest_read"]:,} of {st["instagram_posts_2025_with_optin"]:,} Instagram posts with opt-in '
                       f'(published 2025 or later), the opt-in count stopped updating while public views kept growing. '
@@ -659,7 +673,7 @@ def targets(D):
                          f'{sc["kept_paid"]["with_socapi"]} kept paid posts. '
                          + (f'If the removed posts that SocAPI shows as paid were counted as paid, v2 would catch {pct(stress["material_recall"], 1)}. ' if stress else "")
                          + ("v2.2 also uses the follower count known on the scoring day (amendment 5). " if v22 else "")),
-                    data=table(["Platform", "Metric", "v1 (labels as pulled)", "v2 (fixed labels)"],
+                    data=table(["Platform", "Metric", "v1 (labels as pulled)", f'{"v2.2" if v22 else "v2.1"} (fixed labels)'],
                                [[lab, k.replace("_", " "), f3(vv[p][k]["v1"]), f3(vv[p][k]["v2"])] for p, lab in PLATFORMS
                                 for k in ("roc_auc", "pr_auc", "precision", "recall", "f1", "ece")]))
     else:
@@ -685,8 +699,8 @@ def targets(D):
                              "Recall: of the paid posts (large and small), the share the model flags.",
                              "F1: one number that balances the two columns before it. 1.000 is perfect."])
                  + f'<p class="mini">{esc(note)}</p>', cls="span2",
-                 sub=f"Each post gets the longest model its data allows. Test posts {day(t0)} – {day(t1)}.",
-                 tip="Day 14 needs a public read on day 12–14 and a first read by day 10. Day 30 needs a read on day 28 or later. "
+                 sub=f"{'Model v2.2. ' if C2.get('run') == 'v22' else ''}Each post gets the longest model its data allows. Test posts {day(t0)} – {day(t1)}.",
+                 tip="Day 14 needs a public read on day 12–14 and a first read by day 10. Day 30 needs a read on day 28–30. "
                      "Day 60 needs a read on day 55 or later.")
     return f'<section id="targets" class="grid">{scorecard(D)}{comp}{horiz}</section>'
 
@@ -802,7 +816,7 @@ def model(D):
                          for i, (k, v) in enumerate(top)])
 
     both = lambda fn: pf_panels(fn)
-    sweep_rows = [[lab, f'{r["threshold"]:.2f}', pct(r["precision"], 1), pct(r["recall"], 1), pct(r["f1"], 1)] for p, lab in PLATFORMS for r in P[p]["threshold_sweep_test"]]
+    sweep_rows = [[lab, f'{r["threshold"]:.2f}', pct(r["precision"], 1), pct(r["recall"], 1), f3(r["f1"])] for p, lab in PLATFORMS for r in P[p]["threshold_sweep_test"]]
     cards = [
         card("Confusion matrix", both(cmx), sub="Locked test, threshold chosen on train",
              tip="Test posts published 2026-07-01 to 2026-09-09, scored once. Rows = true label, columns = model flag.",
@@ -828,7 +842,7 @@ def model(D):
                          for p, lab in PLATFORMS for h in [P[p]["curves_test"]["histogram"]] for i in range(len(h["boosted"]))])),
         card("Threshold choice", both(sweep) + legend([("c-n5", "Precision"), ("c-n3", "Recall"), ("c-acc", "F1")]), sub="How results move with the cut-off",
              tip="The threshold was chosen on train. " + " ".join(
-                 f'{lab}: the stricter cut-off {o["threshold"]:.2f} (precision 95% on train) gives {pct(o["test"]["precision"])} precision at {pct(o["test"]["recall"])} recall on test.'
+                 f'{lab}: the cut-off picked for 95% precision on train ({o["threshold"]:.2f}) gives {pct(o["test"]["precision"], 1)} precision at {pct(o["test"]["recall"], 1)} recall on test.'
                  for p, lab in PLATFORMS for o in P[p]["operating_points"] if o["rule"].startswith("precision >=")),
              data=table(["Platform", "Threshold", "Precision", "Recall", "F1"], sweep_rows)),
         card("Cumulative gains", both(gains), sub="Check the highest scores first",
@@ -838,7 +852,8 @@ def model(D):
              tip="LLMs: GPT-5, Claude Sonnet 4.5 and Llama 3.1 70B in Snowflake Cortex, given the same public numbers, threshold 0.5, "
                  "150 test posts per platform. They were run once, next to the older v1 model, so they are compared with v1, not with the current model.",
              data=table(["Platform", "Detector", "AUC", "Precision", "Recall", "F1"],
-                        [[("Instagram" if r["platform"] == "Instagram" else "TikTok"), esc(r["detector"].replace("LLM ", "")), f3(float(r["roc_auc"])),
+                        [[("Instagram" if r["platform"] == "Instagram" else "TikTok"),
+                          esc(r["detector"].replace("LLM ", "").replace("ML model (same posts)", "v1 model (same posts)")), f3(float(r["roc_auc"])),
                           pct(float(r["precision"]), 1), pct(float(r["recall"]), 1), f3(float(r["f1"]))] for r in D["llm"]])),
         card("What the model looks at", both(inputs), sub="Top 5 inputs, public data only. Top input = 100%.",
              tip="Importance = drop in test PR AUC when the input is shuffled. No paid date, ad, spend, opt-in or SocAPI field is an input."),
@@ -877,7 +892,7 @@ def faq(D):
              ("pre-boost read x flat growth (fitted on other posts)", "Pre-boost read × one factor"),
              ("pre-boost read x organic curve (no fitting on these posts)", "Pre-boost read × organic curve")]
     tier_lab = {"CONFIRMED_PAID_TAG": "Post-ID tag in the paid table", "CONFIRMED_AD_LINK": "Ad link (ad name, Spark item id)",
-                "MEASURED_OPTIN_GAP": "Opt-in below 80% of public", "MEASURED_SOCAPI_GAP": "SocAPI shows paid Facebook plays",
+                "MEASURED_OPTIN_GAP": "Opt-in below 80% of public (opt-in still updating)", "MEASURED_SOCAPI_GAP": "SocAPI shows paid Facebook plays",
                 "LOGGED_PAID_DATE_ONLY": "Manual paid date only", "NO_PAID_EVIDENCE": "No paid record (model scores it)"}
 
     def full(p, lab):
@@ -899,7 +914,7 @@ def faq(D):
          f"<p>Organic is the small number left after you remove a large paid number. Paid is a median {pct(R['paid_share_of_public']['median'])} of public views. "
          f"On the {a['posts']} tagged posts while ads ran, {pct(a['public - paid IG impressions']['negative_organic'])} of days give negative organic.</p>"),
         ("How sure is the pre-boost method?",
-         "<p>It depends on how late the pre-boost read is.</p>"
+         "<p>It depends on how late the pre-boost read is (paid Instagram posts, checked against opt-in).</p>"
          + table(["Pre-boost read", "Posts", "Typical error", "Within ±25%"],
                  [[n, pf_[k]["posts"], pct(pf_[k]["median_abs_error"], 1), pct(pf_[k]["within_25pct"])] for k, n in
                   [("high", "Day 14 or later"), ("medium", "Day 7–13"), ("low", "Before day 7")]])
@@ -911,20 +926,23 @@ def faq(D):
          f"<p>TikTok public views rise {times(T['tiktok_metric_match']['Video plays (starts)']['median'])} the paid plays ({T['tiktok_posts']} posts). "
          f"But TikTok opt-in equals public (ratio {f3(T['tiktok_optin_equals_public']['median'])}), so there is no organic truth after a boost. "
          f"Subtraction gives {times(tv['median'])} the curve estimate, and we cannot check which is right.</p>"
-         "<p>YouTube has no ad-to-video link in the warehouse (0 of 34,687 posts), so it cannot be tested.</p>"),
+         "<p>YouTube has no ad-to-video link in the warehouse, so it cannot be tested.</p>"),
         ("How do we know a post is paid?",
          "<p>Each post gets its strongest proof. The model only scores posts with none.</p>"
          + table(["Proof (strongest first)", "Instagram", "TikTok"],
                  [[tier_lab[k], f'{tiers["Instagram"].get(k, 0):,}', (f'{tiers["Tiktok"][k]:,}' if k in tiers["Tiktok"] else "n/a")] for k in tier_lab])
-         + f"<p>Gold check: our Meta ad-name rule finds {g['Instagram']['found_by_link_rule_all']} of {g['Instagram']['tagged']} tagged posts. "
-           f"The TikTok Spark link finds {g['Tiktok']['found_by_link_rule_tracked']} of {g['Tiktok']['tracked_in_bira']} tagged campaign posts, so the tag goes first. "
-           "One TikTok test “false positive” is a tagged paid post: the label was wrong, the model was right.</p>"),
+         + f"<p>Gold check: our Meta ad-name rule finds {g['Instagram']['found_by_link_rule_all']} of {g['Instagram']['tagged']} tagged Instagram posts. "
+           f"The TikTok Spark link finds {g['Tiktok']['found_by_link_rule_all']} of {g['Tiktok']['tagged']} tagged TikTok posts, and "
+           f"{g['Tiktok']['found_by_link_rule_tracked']} of the {g['Tiktok']['tracked_in_bira']} that are tracked campaign posts, so the tag goes first. "
+           "Since v2 the labels count a post-ID tag as paid.</p>"),
         ("How was the model kept honest?",
          ("<ul><li>No paid data in the inputs: only public views, likes, comments, shares and followers up to the model day (14, 30 or 60), "
           "and the same creator's earlier posts.</li>"
           "<li>Targets written down before any test (docs/IMPROVEMENT_PLAN.md). Every change was chosen on train only and logged there first.</li>"
-          f"<li>Locked test (posts {C['test_cutoff']} to {C.get('test_end', '2026-09-09')}): v1 was scored on it once, v2 once more (second look). "
-          f"Fresh posts ({C['fresh'][0]} to {C['fresh'][1]}) were scored once.</li>" if D["C2"] else
+          f"<li>Locked test (posts {C['test_cutoff']} to {C.get('test_end', '2026-09-09')}): no model choice was made on it. "
+          + ("v2.2 is the fourth look at it and the third at the fresh posts "
+             if C.get("run") == "v22" else "v2 is the second look at it, and the fresh posts ")
+          + f"({C['fresh'][0]} to {C['fresh'][1]}) were scored once per version. Posts published after 2026-09-24 are the next clean test.</li>" if D["C2"] else
           "<ul><li>No paid data in the inputs: only public views, likes, comments, shares and followers from days 0–30.</li>"
           f"<li>Locked test: trained on posts before {C['test_cutoff']}, tested once on later posts. Re-running the code gives the same scores.</li>")
          + "<li>Model and threshold chosen on train only, with cross-validation grouped by creator.</li>"
@@ -933,12 +951,14 @@ def faq(D):
         ("All model metrics", "".join(full(p, lab) for p, lab in PLATFORMS)),
         ("Thresholds for a stricter or looser flag",
          table(["Platform", "Rule (chosen on train)", "Threshold", "Precision", "Recall", "F1"],
-               [[lab, esc(o["rule"]), f'{o["threshold"]:.2f}', pct(o["test"]["precision"], 1), pct(o["test"]["recall"], 1), pct(o["test"]["f1"], 1)]
+               [[lab, esc(o["rule"]), f'{o["threshold"]:.2f}', pct(o["test"]["precision"], 1), pct(o["test"]["recall"], 1), f3(o["test"]["f1"])]
                 for p, lab in PLATFORMS for o in P[p]["operating_points"]])),
         ("Slices and model choice",
          table(["Platform", "Slice", "Posts (paid)", "AUC", "F1"],
                [[lab, esc(k), f'{v["n"]} ({v["n_pos"]})', f3(v["roc_auc"]), f3(v["f1"])] for p, lab in PLATFORMS for k, v in P[p]["slices_test"].items()]
                + [[lab, "Client holdout (train CV)", f'{P[p]["train"]["n"]:,}', f3(P[p]["overfit_check"]["train_cv_by_client_roc_auc"]), ""] for p, lab in PLATFORMS])
+         + ("<p>Candidates from the model search (train cross-validation, before the follower fix). v2.2 refits the highlighted pick.</p>"
+            if C.get("run") == "v22" else "")
          + table(["Platform", "Candidate (train CV)", "AUC", "PR AUC"],
                  [[lab, esc(r["model"].replace("_", " ")), f3(r["cv_roc_auc"]), f3(r["cv_pr_auc"])] for p, lab in PLATFORMS for r in P[p]["selection_table"]],
                  hl=lambda r: any(r[1] == f'{P[p]["selected_model"].split(" + isotonic")[0]} [{P[p].get("feature_set", "")}]'.replace("_", " ")
@@ -1117,9 +1137,9 @@ table.sct tr:last-child th, table.sct tr:last-child td { border-bottom: 0; }
 .dm-lab { font-size: 14px; font-weight: 500; display: grid; } .dm-lab small { color: var(--muted); font-weight: 400; font-size: 12px; }
 .dm-grid { display: grid; grid-template-columns: repeat(20, minmax(0, 1fr)); gap: 3px; max-width: 260px; }
 .dt { aspect-ratio: 1; border-radius: 50%; display: block; }
-.m { background: var(--accent); } .h { background: var(--n5); } .md { background: var(--n4); } .l { background: var(--n2); }
+.m { background: var(--accent); } .mf { background: color-mix(in srgb, var(--accent) 38%, var(--card)); } .h { background: var(--n5); } .md { background: var(--n4); } .l { background: var(--n2); }
 .x { background: transparent; box-shadow: inset 0 0 0 1.5px var(--n3); }
-.sw.m, .sw.h, .sw.md, .sw.l, .sw.x { border-radius: 50%; }
+.sw.m, .sw.mf, .sw.h, .sw.md, .sw.l, .sw.x { border-radius: 50%; }
 /* inverse card */
 .inv { justify-content: space-between; min-height: 300px; background: var(--inv); color: var(--inv-ink); border: 0; overflow: hidden; isolation: isolate; }
 .inv::after { content: ""; position: absolute; inset: 0; z-index: -1; opacity: .18; mix-blend-mode: overlay;
