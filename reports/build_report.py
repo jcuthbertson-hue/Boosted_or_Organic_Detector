@@ -21,7 +21,14 @@ PLATFORMS = [("Instagram", "Instagram"), ("Tiktok", "TikTok")]
 DEFAULT_PF = "Instagram"
 HAND_RULE = "Hand rule: views > followers AND engagement < 1%"
 GLOSSARY = [
-    ("Public views", "The count anyone can see on the post (read by Nimble). Organic plus paid."),
+    ("Public views (Nimble)", "The count anyone can see on the post, read by our scraper (Nimble). Organic plus paid. On Instagram it is the Instagram part only, "
+                              "not the views of the same post on Facebook."),
+    ("Total seen", "All views of the post on the platform: Instagram plus Facebook (SocAPI total plays)."),
+    ("Boosted", "An ad record (ad link or post-ID tag) or a model flag says the post had paid views."),
+    ("Pre-boost read", "The last public view count before the boost started. It holds organic views only."),
+    ("Organic curve", "How unboosted posts normally grow with age (share of their day-120 views on each day). We grow the pre-boost read along it."),
+    ("View jump", "The first day the daily views grow far faster than the organic curve. With no ad date, we use it as the boost start."),
+    ("Dark post", "An ad that runs as its own post, not as a boost of the creator's post. The creator's post then keeps organic views only."),
     ("Opt-in views", "The creator's own account numbers, shared with consent. On Instagram they count organic views only, so they are the "
                      "organic truth. On TikTok they include Spark Ad views."),
     ("SocAPI", "A separate feed of play counts per post (total, Instagram, Facebook). Used only as an independent check, never as a model input."),
@@ -87,7 +94,8 @@ def load():
                 AU=j("results/ig_miss_audit.json") if os.path.exists("results/ig_miss_audit.json") else None,
                 EQ=j("results/vn_boost_equation.json") if os.path.exists("results/vn_boost_equation.json") else None,
                 PM=j("results/predict_missing.json") if os.path.exists("results/predict_missing.json") else None,
-                BS=j("results/boost_start_eval.json") if os.path.exists("results/boost_start_eval.json") else None)
+                BS=j("results/boost_start_eval.json") if os.path.exists("results/boost_start_eval.json") else None,
+                MR=j("results/missing_research.json") if os.path.exists("results/missing_research.json") else None)
 
 
 # ---------------------------------------------------------------- small components
@@ -306,7 +314,7 @@ def dots(V):
         for (k, name, cls), n in zip(seg, counts):
             tip = f"{lab}: {name}: {t.get(k, 0):,} of {t['posts']:,} paid posts ({pct(t.get(k, 0) / t['posts'])})"
             cells += [f'<i class="dt {cls}" data-tip="{esc(tip)}"></i>'] * n
-        out.append(f'<div class="dm"><span class="dm-lab">{lab}<small>{t["posts"]:,} paid posts</small></span><div class="dm-grid">{"".join(cells)}</div></div>')
+        out.append(f'<div class="dm"><span class="dm-lab">{lab}<small>{t["posts"]:,} with an ad record</small></span><div class="dm-grid">{"".join(cells)}</div></div>')
     shown = [s for s in seg if any(V["totals"][p].get(s[0], 0) for p, _ in PLATFORMS)]
     return "".join(out) + legend([(c, n) for _, n, c in shown])
 
@@ -383,7 +391,7 @@ def overview(D):
              f'<div class="big sm">{pct(ig_cov["measured_optin"] / ig_cov["posts"])}</div><p class="big-sub">of paid Instagram posts have opt-in that gives true organic views. '
              + (f'Another {pct(ig_cov["optin_frozen"] / ig_cov["posts"])} have opt-in until it stopped updating.' if ig_cov.get("optin_frozen") else "")
              + '</p>' + dots(V),
-             tip="Each dot is 1% of paid posts in the daily table (all publish dates). Estimate = pre-boost public read × organic curve; its "
+             tip="Each dot is 1% of posts with an ad record in the daily table (all publish dates). Model-flagged posts are not in this chart. Estimate = pre-boost public read × organic curve; its "
                  "confidence depends on how late that read is: day 14+ high, day 7–13 medium, before day 7 low. Opt-in that stopped updating is "
                  "used up to the freeze, then grown along the organic curve.",
              data=table(["Platform", "Measured", "Opt-in, then estimate", "High", "Medium", "Low", "Not separable"],
@@ -489,13 +497,67 @@ def start(D):
     k = fb["k_median_all_posts"]
     bs = (D.get("BS") or {}).get("test", {}).get("organic_instagram")
 
-    brief = ('<article class="card span3 brief">'
-             f'<div class="br-row"><span class="br-k">The goal</span><p>For every campaign post, know if it was boosted, and how many of its views were '
-             f'{term("o", "organic")} and how many were {term("i", "paid")}.</p></div>'
-             '<div class="br-row"><span class="br-k">The ask</span><p>Paid Media asked: for posts VN boosted, does organic + boosted = the total seen on the platform?</p></div>'
-             f'<div class="br-row"><span class="br-k">The outcome</span><p><b>Yes, once Facebook is counted.</b> Our numbers add up to {pct(best["median"])} of the total for a typical post, '
-             f'and {pct(eqf["median"])} with a small Facebook correction. But the sum does not run backwards: total − paid gives a bad organic number for one post '
-             f'({pct(sub_["median_abs_error"])} off). <a href="#equation">See the proof</a></p></div></article>')
+    R = D["R"]
+    mm_ig, mm_fb = R["metric_match"]["instagram_side"], R["metric_match"]["facebook_side"]
+    view_types = [v["median"] for n_, v in mm_ig.items() if n_ not in ("Impressions", "Reach", "Video plays (starts)") and v.get("n")]
+    tags = {r["platform"]: r["posts"] for r in D["V"]["by_evidence"] if r["evidence"] == "CONFIRMED_PAID_TAG"}
+    links = {r["platform"]: r["posts"] for r in D["V"]["by_evidence"] if r["evidence"] == "CONFIRMED_AD_LINK"}
+    split = lambda c: 1 - c["organic_from"]["missing"] / boosted(c)
+    mr = "missing_by_reason"
+    early = lambda c: c[mr]["boosted_before_first_read"] + c[mr]["jump_before_day_3"]
+    MR = D.get("MR") or {}
+    cr = MR.get("creator", {})
+    cr_err = [cr[k]["median_abs_error"] for k in ("boosted_tune", "boosted_test") if cr.get(k)]
+    so = E["socapi"]
+    other = sum(r["impressions"] for r in E["placements"]["rows"][2:]) / sum(r["impressions"] for r in E["placements"]["rows"])
+
+    # bottom line first: three answers, then what Paid Media can do
+    bl = [("Total − a paid metric does not give one post's organic.",
+           f'Even the best paid metric (impressions) is {pct(sub_["median_abs_error"])} off for a typical post, and {pct(sub_["negative_organic"])} of posts go below zero '
+           f'({sub_["posts"]} Instagram posts, checked against creator data).'),
+          ("A repeatable way works: the views just before the boost, grown at the normal organic rate.",
+           f'{pct(curve["median_abs_error"], 1)} off for a typical post, never below zero ({curve["posts"]} posts). It now gives an organic number for '
+           f'{pct(split(ig))} of boosted Instagram posts and {pct(split(tt))} of boosted TikTok posts.'),
+          ("For posts VN boosted, organic + boosted = the total seen, once Facebook is counted.",
+           f'Our parts add up to {pct(best["median"])} of the total for a typical post, {pct(eqf["median"])} with a small Facebook correction ({best["posts"]} posts).')]
+    asks = [("Tag every boosted ad with the post ID or URL.", "Gives the exact start date and the paid numbers for each post."),
+            ("Boost after day 3, best after day 7–14. Or use a dark post.", "A boost in the first days leaves no organic-only views to measure."),
+            (f"Check the {best['posts']} totals in the Instagram app.", "Confirms which total the app shows (Instagram only, or Instagram + Facebook).")]
+    bottom = ('<article class="card span3 bluf"><span class="kicker">Bottom line</span><ol class="bl">'
+              + "".join(f'<li><span class="bl-n">{i}</span><div><b>{esc(t)}</b><span>{x}</span></div></li>' for i, (t, x) in enumerate(bl, 1))
+              + '</ol><div class="bl-ask"><span class="bl-ak">What we need from Paid Media</span><ul>'
+              + "".join(f'<li><b>{esc(t)}</b><span>{esc(why)}</span></li>' for t, why in asks) + '</ul></div>'
+              + f'<p class="bl-cav"><span class="pill warn">What could change this</span><span>The sum rests on {best["posts"]} posts so far, and TikTok has no '
+                'creator data that counts organic only, so no TikTok estimate can be checked yet.</span></p></article>')
+
+    qa = [("Does total − a paid metric = organic?", "No, not for one post.",
+           f'Best metric: {pct(sub_["median_abs_error"])} off, {pct(sub_["negative_organic"])} of posts below zero. Paid is {pct(R["paid_share_of_public"]["median"])} of the views, '
+           'so a small paid miss is a big organic miss.', "#overview"),
+          ("Which paid metric matches the views?", "Impressions on Instagram. Video plays on Facebook.",
+           f'Extra views on Instagram = {times(mm_ig["Impressions"]["median"])} paid impressions. Facebook part = {times(mm_fb["Video plays (starts)"]["median"])} paid plays. '
+           f'3-second views, ThruPlays and other view types are {min(view_types):.0f}–{max(view_types):.0f}× too small.', "#eq-types"),
+          ("Is there a repeatable way to find organic?", "Yes: the views before the boost × normal organic growth.",
+           f'{pct(curve["median_abs_error"], 1)} off ({curve["posts"]} posts). With no start date, the start is found from the jump in daily views'
+           + (f' ({pct(bs["median_abs_error"], 1)} off, {bs["posts"]} posts).' if bs else "."), "#findings"),
+          ("Does organic + boosted = the total seen?", "Yes, once Facebook is counted.",
+           f'{pct(best["median"])} of the total for a typical post. Facebook is {pct(so["facebook_share_of_total_median"])} of the total; '
+           f'placements other than Facebook and Instagram get {pct(other, 2)} of paid impressions.', "#equation"),
+          ("Is the total in our data the total in the app?", "Not yet confirmed.",
+           f'Our public views (Nimble) count Instagram only. A shared list of {best["posts"]} posts is ready to check in the app: '
+           f'<b class="ac-left">{best["posts"]}</b> still to check.', "#appcheck"),
+          ("Do we still need dark posts?", "Only for boosts in the first days.",
+           f'Those posts have no organic-only views before the boost: {early(ig):,} Instagram and {early(tt):,} TikTok posts today. '
+           + (f'Every other signal we tried is {min(cr_err):.0%}–100% off.' if cr_err else ""), "#tried"),
+          ("Do we need the model for this?", "Not for posts VN boosted. Only to find boosts with no ad record.",
+           f'{pct(share_model(ig))} of boosted Instagram posts have no ad record. The model catches {pct(im["recall"])} of Instagram boosts; '
+           f'the simple rule (views above followers and engagement below 1%) catches {pct(rule["recall"])}.', "#need")]
+    answers = ('<article class="card span3"><div class="card-head"><h3>Paid Media\'s questions, answered</h3>'
+               '<p class="card-sub">Short answer in bold. Select a row to see its proof.</p></div><div class="qr-list">'
+               + "".join(f'<a class="qr" href="{h}"><span class="qr-q">{esc(q)}</span><span class="qr-a"><b>{esc(a_)}</b><span>{x}</span></span>'
+                         f'<span class="qr-go" aria-hidden="true">Proof →</span></a>' for q, a_, x, h in qa)
+               + '</div><p class="proof"><b>Which posts.</b> We started with the posts tagged with a post ID in the paid table (tags began in September 2026): '
+               f'only {tags.get("Instagram", 0) + tags.get("Tiktok", 0)} posts so far, too few. So we went further back and matched ads to posts by the post key in the ad name: '
+               f'{links.get("Instagram", 0):,} Instagram and {links.get("Tiktok", 0):,} TikTok posts. Organic truth = creator account data (opt-in), Instagram only.</p></article>')
 
     def step(n, q, body, proof, href):
         return (f'<a class="step" href="{href}"><span class="step-n">{n}</span><h3>{q}</h3>{body}'
@@ -519,7 +581,7 @@ def start(D):
                     f'{pct(fb["total_from_nimble_plus_k_fb_plays"]["median_abs_error"], 1)} off for a typical post. Only {fb["total_from_nimble_plus_k_fb_plays"]["posts"]} posts so far.', "#equation")
              + '</div>')
     flow = claim_card("How it works", "Four questions take a post from public views to its true organic and paid views.",
-                      steps, f"Counts: daily table, data read 2026-10-07. Errors: posts with creator data or SocAPI data, one read per post at least 2 days after the last ad day. "
+                      steps, f"Counts: daily table run 2026-10-08 (ad records read 2026-10-07). Errors: posts with creator data or SocAPI data, one read per post at least 2 days after the last ad day. "
                              f"Model test: posts published {day(D['C2'].get('test_cutoff', '2026-07-01'))} – {day(D['C2'].get('test_end', '2026-09-09'), True)}.",
                       cls="span3")
 
@@ -531,7 +593,6 @@ def start(D):
         bar = "".join(f'<i class="sg {k_} grow" style="width:{100 * v / n:.2f}%;--d:{.25 * i}s" tabindex="0" data-tip="{esc(f"{v:,} of {n:,} boosted {lab} posts: {t}.")}">'
                       + (f'<span>{pct(v / n)}</span>' if v / n >= .08 else "") + "</i>" for i, (k_, v, t) in enumerate(segs) if v)
         return f'<div class="cov-row"><span class="cov-l"><b>{lab}</b>{n:,} boosted posts</span><div class="cov-bar">{bar}</div></div>'
-    split = lambda c: 1 - c["organic_from"]["missing"] / boosted(c)
     cov = claim_card("Where we stand today",
                      f"We can split {pct(split(ig))} of boosted Instagram posts into organic and paid, and {pct(split(tt))} of boosted TikTok posts.",
                      cov_bar(ig, "Instagram") + cov_bar(tt, "TikTok")
@@ -547,25 +608,27 @@ def start(D):
                      f"The model cannot score {ig['not_scored']:,} Instagram and {tt['not_scored']:,} TikTok posts, mostly because we have no public read in their first 60 days.",
                      cls="span2")
     need = claim_card("Do we need the model?",
-                      "Not for Paid Media's question. Yes for everything else.",
+                      "Not for posts VN boosted. Yes, to find boosts with no ad record.",
                       f'<div class="facts"><div><b class="t i">{pct(share_model(ig))}</b><span>of boosted Instagram posts have no ad record. Only the model finds them.</span></div>'
                       f'<div><b class="t i">{pct(share_model(tt))}</b><span>of boosted TikTok posts have no ad record.</span></div>'
                       f'<div><b>{pct(im["recall"])}</b><span>of Instagram boosts caught by the model, {pct(rule["recall"])} by the simple rule '
                       f'(views above followers and engagement below 1%).</span></div></div>',
                       f"Posts VN boosted have ad records, so the equation needs no model. Model vs rule: Instagram test posts, {im['tp'] + im['fn']} boosted. "
-                      f"The rule is right on {pct(rule['precision'])} of its flags, the model on {pct(im['precision'])}.")
-    mr = "missing_by_reason"
-    early = lambda c: c[mr]["boosted_before_first_read"] + c[mr]["jump_before_day_3"]
-    gaps = [(f"{early(ig):,} Instagram and {early(tt):,} TikTok posts boosted at publish or before our first read",
-             "No clean views exist before the boost, so there is nothing to grow forward.",
-             "Read posts from day 0. Boost after day 7–14, or use a dark post.", "Paid Media"),
+                      f"The rule is right on {pct(rule['precision'])} of its flags, the model on {pct(im['precision'])}.", attrs='id="need"')
+    nj = MR.get("no_clear_jump_instagram_optin")
+    gaps = [(f"{early(ig):,} Instagram and {early(tt):,} TikTok posts boosted before day 3 or before our first read",
+             "No organic-only views exist before the boost, so there is nothing to grow forward. "
+             + (f"Every other signal we tried is {min(cr_err):.0%}–100% off (below)." if cr_err else ""),
+             "Boost after day 3, best after day 7–14, or use a dark post. Read new posts from day 0.", "Paid Media"),
             (f"{ig[mr]['no_clear_jump']:,} Instagram and {tt[mr]['no_clear_jump']:,} TikTok posts with no clear jump",
-             "The daily views never jump: the boost was small or slow, or the model flag is wrong.",
-             "Match them to ad records where we can. Next method to test: the creator's usual organic views.", "BI · next"),
+             "The daily views never jump, so we cannot see when the boost started."
+             + (f" Most are small boosts: on {nj['posts']} such Instagram posts with creator data, a typical {pct(nj['paid_share_median'])} of views are paid "
+                f"(the {R['paid_share_of_public']['n']} boosted posts in the subtraction test: {pct(R['paid_share_of_public']['median'])})." if nj else ""),
+             "Match them to ad records where we can. Until then, the public total is the most organic can be.", "BI · next"),
             ("TikTok organic after a boost", "TikTok creator data also counts Spark Ad views, so we cannot check the estimate.",
              "Run one TikTok dark-post test.", "Paid Media"),
             (f"The Facebook correction ({k:.1f}×)", f"It rests on {fb['total_from_nimble_plus_k_fb_plays']['posts']} posts.",
-             "Check the 20 posts in the Instagram app. Collect more SocAPI reads.", "BI + Paid Media")]
+             f"Check the {best['posts']} posts in the Instagram app. Collect more SocAPI reads.", "BI + Paid Media")]
     rows = "".join(f'<li><span class="gap-n">{i}</span><div><b>{esc(w)}</b><span>{esc(why)}</span></div><div><span class="gap-fix">{esc(fix)}</span>'
                    f'<span class="gap-o">{esc(o)}</span></div></li>' for i, (w, why, fix, o) in enumerate(gaps, 1))
     miss = claim_card("What is still missing", f"We can now estimate most of what we do not measure. {len(gaps)} gaps remain, and each has a fix.",
@@ -573,9 +636,38 @@ def start(D):
                       f"Daily table, data read 2026-10-07; daily views pulled 2026-10-08. View-jump test: {(D.get('BS') or {}).get('posts', {}).get('ig_boosted', 0) + (D.get('BS') or {}).get('posts', {}).get('tt_boosted', 0):,} boosted posts, "
                       "tuned on half and scored once on the other half (results/boost_start_eval.json). Paid can be predicted wherever organic can (step 3).",
                       cls="span3", attrs='id="gaps"')
-    head = ('<div class="block-head"><div><h2>Start here</h2><p class="card-sub">The goal, the ask, and what we found. '
+    tried = ""
+    if MR and bs:
+        wg, sr, lk = MR["window_growth_organic"]["Instagram day 7-21"], MR["slow_ramp"], MR["likes"]["organic_from_likes_test"]
+        su, aa = MR["speed_up"], MR["after_the_ads_panel"]
+        rows_ = [("Views before the boost, ad start date", curve, True, "the method in use"),
+                 ("Views before the boost, start found from the view jump", bs, True, "in use since 2026-10-08"),
+                 ("The creator's usual organic views", cr["boosted_test"], False, "median of the creator's unboosted posts"),
+                 ("Slow ramp: growth over 5 days", sr["instagram_organic_vs_optin"], False, f"finds {sr['found']} of {sr['boosted_no_jump_posts']} no-jump posts"),
+                 ("Growth in a later window (day 7–21)", wg, False, "best case: tested on unboosted posts"),
+                 ("Total − paid impressions", sub_, False, "the subtraction Paid Media asked about"),
+                 ("Likes per view", lk, False, "paid views get far fewer likes")]
+        tr = "".join(f'<div class="tr{" on" if on else ""}"><span class="tr-l">{esc(n_)}<small>{esc(why)} · {e["posts"]:,} posts</small></span>'
+                     f'<div class="tr-track"><i class="tr-fill grow" style="width:{100 * min(e["median_abs_error"], 1):.1f}%;--d:{.08 * i:.2f}s"></i></div>'
+                     f'<b>{pct(e["median_abs_error"], 1) if e["median_abs_error"] < .2 else pct(e["median_abs_error"])}</b></div>'
+                     for i, (n_, e, on, why) in enumerate(rows_))
+        tr += '<div class="tr tr-ax"><span></span><div class="rr-ticks"><span style="left:0%">0%</span><span style="left:25%">25%</span><span style="left:50%">50%</span><span style="left:100%">100% off</span></div><b></b></div>'
+        tried = claim_card("Can we predict the posts we still miss?",
+                           f"Only from the views before the boost. Every other signal we tried is {min(cr_err):.0%}–100% off for a typical post.",
+                           f'<div class="tried" role="img" aria-label="Typical organic error by method">{tr}</div>'
+                           + legend([("tr-k on", "In use"), ("tr-k", "Tested, not used")])
+                           + f'<p class="claim-note"><b>Does a boost show as faster growth?</b> Yes, but organic posts speed up often too. A rise of 25% or more in daily views shows in '
+                             f'{pct(su["Instagram"]["first 7 days of ads"]["share_up_25pct"])} of reads in the first week of ads and in {pct(su["Instagram"]["organic posts"]["share_up_25pct"])} '
+                             f'of reads on unboosted posts (Instagram; TikTok {pct(su["Tiktok"]["first 7 days of ads"]["share_up_25pct"])} vs {pct(su["Tiktok"]["organic posts"]["share_up_25pct"])}). '
+                             f'So we look for one large jump, not any speed-up. Paid views also do not stop when the ads stop: {pct(aa["2 days after"]["paid_share_of_daily_gain_median"])} of the daily gain '
+                             f'is still paid 2 days after the last ad day, and {pct(aa["4-30 days after"]["paid_share_of_daily_gain_median"])} on days 4–30.</p>',
+                           f"Error = typical gap to creator data (opt-in), Instagram boosted posts unless stated. Fitted parts were tuned on half the posts and scored once on the other half. "
+                           f"Speed-up: {su['Instagram']['first 7 days of ads']['intervals']:,} and {su['Instagram']['organic posts']['intervals']:,} read-to-read steps after day 3. "
+                           f"After the ads: daily reads of {aa['during the ads']['posts']} boosted posts with creator data. Data read 2026-10-07 and 2026-10-08.",
+                           cls="span3", attrs='id="tried"')
+    head = ('<div class="block-head"><div><h2>Answers first</h2><p class="card-sub">The bottom line, a short answer to each question, and what is still missing. '
             'Each part links to its proof further down.</p></div></div>')
-    return f'<section id="start" class="block">{head}<div class="grid">{brief}{flow}{cov}{need}{miss}</div></section>'
+    return f'<section id="start" class="block">{head}<div class="grid">{bottom}{answers}{flow}{cov}{need}{miss}{tried}</div></section>'
 
 
 def equation(D):
@@ -603,7 +695,7 @@ def equation(D):
     strip = [("1", "It adds up", pct(best["median"]), f"of the total, for a typical post, once Facebook is counted. All {best['posts']} posts are within 25%.", "#eq-sum"),
              ("2", "Facebook", pct(so["facebook_share_of_total_median"]), "of the total is on Facebook. Nimble shows the Instagram part only.", "#eq-fb"),
              ("3", "Placements", pct(other, 2), "of paid impressions ran outside Facebook and Instagram. Too small to matter.", "#eq-types"),
-             ("4", "Still to do", f'<span id="ac-count">{best["posts"]}</span>', "posts to check by hand in the Instagram app before we quote a total.", "#appcheck")]
+             ("4", "Still to do", f'<span class="ac-left">{best["posts"]}</span>', "posts to check by hand in the Instagram app before we quote a total.", "#appcheck")]
     tiles = "".join(f'<a class="ans" href="{h}"><span class="ans-k"><i>{k}</i>{esc(t)}</span><b>{v}</b><span class="ans-s">{esc(sx)}</span></a>' for k, t, v, sx, h in strip)
     head = (f'<div class="block-head"><div><h2>Organic + boosted = total seen?</h2>'
             f'<p class="card-sub">Paid Media\'s ask, for posts VN boosted itself. One read per post, 2 or more days after the last ad day. Each claim below links to the chart that proves it.</p></div></div>'
@@ -725,7 +817,9 @@ def findings(D):
          f"Best case: {pct(best['median_abs_error'])} typical error, {pct(best['negative_organic'])} of posts negative."),
         ("What works: take the views just before the boost and grow them at the normal organic rate.",
          f"{pct(curve['median_abs_error'], 1)} typical error, {pct(curve['within_25pct'])} of posts within ±25%, never negative ({curve['posts']} posts vs opt-in). "
-         f"10-post campaign totals: {pct(cl['pre-boost read x organic curve']['within_25pct'])} within ±25%."),
+         f"10-post campaign totals: {pct(cl['pre-boost read x organic curve']['within_25pct'])} within ±25%."
+         + (f" With no start date, the start is found from the jump in daily views: {pct(D['BS']['test']['organic_instagram']['median_abs_error'], 1)} typical error "
+            f"({D['BS']['test']['organic_instagram']['posts']} posts)." if D.get("BS") else "")),
         ("The post-ID tag in the paid table is the best proof that a post is paid.",
          f"Our Meta ad-name rule finds {g['Instagram']['found_by_link_rule_all']} of {g['Instagram']['tagged']} tagged Instagram posts. "
          f"The TikTok Spark link finds {g['Tiktok']['found_by_link_rule_all']} of {g['Tiktok']['tagged']} tagged TikTok posts, and "
@@ -744,13 +838,19 @@ def findings(D):
                          f"flags really paid {pct(T2['C1'][p]['precision'], 1)}." for p, lab in PLATFORMS)
                      + (" Labels corrected for frozen opt-in." if run in ("v21", "v22") else ""))
     lis = "".join(f'<li><span class="n">{i + 1}</span><span>{tipped(t, tip)}</span></li>' for i, (t, tip) in enumerate(items))
+    CV, M_ = (D.get("PM") or {}).get("coverage"), "missing_by_reason"
     nxt = [("Tag every boosted ad with the post ID.", "The tag gives an exact match on every platform."),
            ("Wait 7–14 days after publish before a boost.",
             f"Instagram, checked against opt-in: a pre-boost read on day 14+ gives {pct(R['production_function_by_confidence']['high']['median_abs_error'], 1)} typical error; "
             f"before day 7, {pct(R['production_function_by_confidence']['low']['median_abs_error'])}."),
-           ("If a boost starts on day 0, use a dark post or get the creator to opt in.",
+           ("If a boost starts before day 3, use a dark post or get the creator to opt in.",
+            (lambda c: f"Today {c['Instagram'][M_]['boosted_before_first_read'] + c['Instagram'][M_]['jump_before_day_3']:,} boosted Instagram posts and "
+                       f"{c['Tiktok'][M_]['boosted_before_first_read'] + c['Tiktok'][M_]['jump_before_day_3']:,} boosted TikTok posts have no clean views before the boost.")(CV)
+            if CV else
             f"Today {pct(V['totals']['Instagram']['not_separable'] / V['totals']['Instagram']['posts'])} of paid Instagram posts and "
-            f"{pct(V['totals']['Tiktok']['not_separable'] / V['totals']['Tiktok']['posts'])} of paid TikTok posts cannot be separated.")]
+            f"{pct(V['totals']['Tiktok']['not_separable'] / V['totals']['Tiktok']['posts'])} of paid TikTok posts cannot be separated."),
+           (f"Check the {D['EQ']['full_platform']['with paid Facebook video plays']['posts'] if D.get('EQ') else 20} totals in the Instagram app.",
+            "Shows whether the app counts Instagram only or Instagram + Facebook, so we know which total to quote. The shared list is in the Equation section.")]
     nx = "".join(f'<li><span class="chk" aria-hidden="true">→</span><span>{tipped(t, tip)}</span></li>' for t, tip in nxt)
     caveat = (f'<div class="caveat"><span class="pill warn">Caveat</span><span>TikTok organic after a boost is an estimate, not verified.'
               f'{info("TikTok opt-in views include Spark Ad views, so there is no organic truth after a boost. The method passes a back-test on unpaid TikTok posts only.")}</span></div>')
@@ -1173,6 +1273,38 @@ def model(D):
             f'{pf_panels(tiles)}<div class="grid">{"".join(cards)}</div>{note}</section>')
 
 
+def jump_faq(D):
+    """FAQ: how the view jump finds a boost start, and why some boosted posts still have no organic number"""
+    B, M = D.get("BS"), (D.get("PM") or {}).get("coverage")
+    if not (B and M):
+        return []
+    t, p = B["test"], B["params"]
+    o, bc, pd_, st = t["organic_instagram"], t["organic_instagram_by_confidence"], t["paid_instagram"], t["start_tiktok"]
+    fa_i, fa_t = t["false_alarm_instagram"], t["false_alarm_tiktok"]
+    rows = ([["Instagram organic vs creator data", o["posts"], pct(o["median_abs_error"], 1), pct(o["within_25pct"])]]
+            + [[f"&nbsp;&nbsp;· pre-boost read on {nm}", bc[k]["posts"], pct(bc[k]["median_abs_error"], 1), pct(bc[k]["within_25pct"])]
+               for k, nm in (("high (day 14+)", "day 14 or later"), ("medium (day 7-13)", "day 7–13"), ("low (day 3-6)", "day 3–6")) if k in bc]
+            + [["Instagram paid (total − organic estimate)", pd_["posts"], pct(pd_["median_abs_error"], 1), pct(pd_["within_25pct"])],
+               ["TikTok organic vs the ad-date estimate", t["tiktok_vs_known_date"]["posts"], pct(t["tiktok_vs_known_date"]["median_abs_error"], 1),
+                pct(t["tiktok_vs_known_date"]["within_25pct"])]])
+    q1 = ("How do we find the boost start when there is no ad date?",
+          "<p>We read the public views every day from day 0 to day 90 and compare each day's growth with the organic curve. The boost start is the first step where "
+          f"growth is far above normal: {p['t_early']:g}× by day 1, {p['t_mid']:g}× by day 3, {p['t_late']:g}× later, and large enough to matter. "
+          "The read just before it is the pre-boost read. If the first jump comes before day 3, we do not guess.</p>"
+          + table(["Test (held-out half of the posts)", "Posts", "Typical error", "Within ±25%"], rows)
+          + f"<p>False alarms on unboosted posts: Instagram {fa_i['found']} of {fa_i['posts']} ({pct(fa_i['rate'])}), TikTok {fa_t['found']} of {fa_t['posts']} ({pct(fa_t['rate'])}). "
+            f"TikTok posts with an ad date: the jump gives a clean start for {st['usable']} of {st['found']}, a late one for {st['bad']}, and {st['found_without_clean_read']} had no clean read at all.</p>")
+    lab = [("boosted_before_first_read", "Boosted before our first read"), ("jump_before_day_3", "First jump before day 3"),
+           ("no_clear_jump", "No clear jump in 90 days"), ("too_few_reads", "Fewer than 2 public reads")]
+    q2 = ("Why do some boosted posts still have no organic number?",
+          "<p>There are no clean, organic-only views before the boost. We do not fill these with a guess.</p>"
+          + table(["Reason", "Instagram", "TikTok"],
+                  [[n, f"{M['Instagram']['missing_by_reason'][k]:,}", f"{M['Tiktok']['missing_by_reason'][k]:,}"] for k, n in lab]
+                  + [["<b>All missing</b>", f"<b>{M['Instagram']['organic_from']['missing']:,}</b>", f"<b>{M['Tiktok']['organic_from']['missing']:,}</b>"]])
+          + '<p>What we tried for these posts is in <a href="#tried">Answers → Can we predict the posts we still miss?</a></p>')
+    return [q1, q2]
+
+
 def faq(D):
     R, T, C, V = D["R"], D["T"], D["C"], D["V"]
     g = C["tag_gold"]                      # link-rule check (independent of the model version)
@@ -1224,6 +1356,7 @@ def faq(D):
          + table(["Read", "Posts", "Typical error", "Within ±25%"],
                  [[f"{lab}, day {d}", f'{bt[p][f"read on day {d} -> predict day 30"]["posts"]:,}', pct(bt[p][f"read on day {d} -> predict day 30"]["median_abs_error"], 1),
                    pct(bt[p][f"read on day {d} -> predict day 30"]["within_25pct"])] for p, lab in [("Instagram", "Instagram"), ("Tiktok", "TikTok")] for d in (3, 7, 14)])),
+    ] + jump_faq(D) + [
         ("What about TikTok and YouTube?",
          f"<p>TikTok public views rise {times(T['tiktok_metric_match']['Video plays (starts)']['median'])} the paid plays ({T['tiktok_posts']} posts). "
          f"But TikTok opt-in equals public (ratio {f3(T['tiktok_optin_equals_public']['median'])}), so there is no organic truth after a boost. "
@@ -1266,8 +1399,10 @@ def faq(D):
                  hl=lambda r: any(r[1] == f'{P[p]["selected_model"].split(" + isotonic")[0]} [{P[p].get("feature_set", "")}]'.replace("_", " ")
                                   or r[1] == P[p]["selected_model"].replace("_", " ") for p, _ in PLATFORMS))),
         ("What does the daily table do?",
-         "<p>One row per post: proof tier, paid status, model score (only with no proof), and organic views with method and confidence. "
-         "The pipeline and its tests are in the repo. It is not scheduled yet: it needs a Snowflake service account and a schema to write to.</p>"),
+         "<p>One row per post: proof tier, paid status, model score (only with no proof), organic views with method and confidence, and, for boosted posts with no "
+         "ad date, the boost start found from the view jump (BOOST_START_DETECTED_DATE, PREBOOST_SOURCE). "
+         + (f"The latest test file covers {sum(D['PM']['coverage'][p]['posts'] for p in ('Instagram', 'Tiktok')):,} posts (run 2026-10-08). " if D.get("PM") else "")
+         + "The pipeline and its tests are in the repo. It is not scheduled yet: it needs a Snowflake service account and a schema to write to.</p>"),
         ("Glossary: sources and terms",
          '<dl class="gloss">' + "".join(f"<dt>{esc(k)}</dt><dd>{esc(v)}</dd>" for k, v in GLOSSARY) + "</dl>"
          + "<p>Organic truth: BIRA observation time series (public = Nimble, opt-in = private API). Paid: unified paid table and EDW Meta and TikTok ad tables. "
@@ -1675,6 +1810,48 @@ table.ac td { vertical-align: middle; }
 .ac input { width: 120px; text-align: right; font-variant-numeric: tabular-nums; }
 .ac input:focus, .ac select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .ac .match-fb { color: var(--c-f-ink); font-weight: 500; } .ac .match-ig { color: var(--c-i-ink); font-weight: 500; }
+/* answers first: bottom line, questions answered, what we tried */
+.card.bluf { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); gap: 18px 36px; align-items: start; padding: 30px 30px 26px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 5%, var(--card)), var(--card) 60%); }
+.bluf > .kicker, .bluf > .bl-cav { grid-column: 1 / -1; }
+.bluf > .kicker { font-size: 13px; font-weight: 600; color: var(--accent-ink); }
+.bl { list-style: none; margin: 0; padding: 0; display: grid; gap: 18px; }
+.bl li { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 14px; align-items: start; }
+.bl-n { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--ink); color: var(--card); font-size: 13px; font-weight: 600; margin-top: 1px; }
+.bl li > div { display: grid; gap: 4px; }
+.bl b { font-size: clamp(18px, 1.8vw, 22px); font-weight: 500; letter-spacing: -.018em; line-height: 1.28; color: var(--ink); text-wrap: balance; }
+.bl li > div > span { font-size: 14.5px; color: var(--ink-2); max-width: 68ch; font-variant-numeric: tabular-nums; }
+.bl-ask { border-radius: 20px; background: var(--raise); border: 1px solid var(--rule); padding: 18px 20px; display: grid; gap: 12px; box-shadow: 0 6px 18px -12px rgba(17,18,20,.25); }
+.bl-ak { font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.bl-ask ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; counter-reset: ask; }
+.bl-ask li { display: grid; gap: 2px; padding-left: 28px; position: relative; counter-increment: ask; }
+.bl-ask li::before { content: counter(ask); position: absolute; left: 0; top: 1px; width: 20px; height: 20px; border-radius: 6px; background: var(--accent-soft); color: var(--accent-ink);
+  display: grid; place-items: center; font-size: 11.5px; font-weight: 600; }
+.bl-ask li b { font-size: 14.5px; font-weight: 500; color: var(--ink); line-height: 1.35; }
+.bl-ask li span { font-size: 13px; color: var(--muted); }
+.bl-cav { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; font-size: 13.5px; color: var(--ink-2); border-top: 1px solid var(--rule); padding-top: 14px; }
+.bl-cav .pill.warn { padding: 2px 10px; font-size: 12px; }
+.qr-list { display: grid; }
+.qr { display: grid; grid-template-columns: minmax(0, .95fr) minmax(0, 1.75fr) 64px; gap: 6px 26px; padding: 14px 12px; margin: 0 -12px; border-radius: 14px;
+  border-top: 1px solid var(--rule-2); color: inherit; text-decoration: none; align-items: start; }
+.qr:first-child { border-top: 0; }
+.qr:hover { background: var(--rule-2); } .qr:hover .qr-go { opacity: 1; }
+.qr-q { font-size: 15px; font-weight: 500; color: var(--ink); line-height: 1.4; }
+.qr-a { display: grid; gap: 3px; font-size: 13.5px; color: var(--muted); line-height: 1.45; font-variant-numeric: tabular-nums; }
+.qr-a > b { font-size: 15px; font-weight: 600; color: var(--ink); }
+.qr-a .ac-left { color: var(--ink); font-weight: 600; }
+.qr-go { font-size: 12.5px; font-weight: 500; color: var(--accent-ink); white-space: nowrap; text-align: right; padding-top: 2px; opacity: .7; }
+.tried { display: grid; gap: 12px; }
+.tr { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr) 56px; gap: 16px; align-items: center; }
+.tr-l { display: grid; gap: 1px; font-size: 14px; color: var(--ink-2); } .tr-l small { font-size: 12px; color: var(--muted); }
+.tr.on .tr-l { color: var(--ink); font-weight: 500; } .tr.on .tr-l small { font-weight: 400; }
+.tr-track { position: relative; height: 14px; border-radius: 999px; background: var(--rule-2); }
+.tr-fill { position: absolute; left: 0; top: 0; bottom: 0; min-width: 4px; border-radius: 999px; background: var(--n3); transform-origin: left center; }
+.tr.on .tr-fill, .sw.tr-k.on { background: var(--c-o); } .sw.tr-k { background: var(--n3); }
+.tr > b { text-align: right; font-size: 15px; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--muted); }
+.tr.on > b { color: var(--c-o-ink); }
+.tr-ax { margin-top: -4px; } .tr-ax .rr-ticks span:last-child { transform: translateX(-100%); }
+.lede { font-size: clamp(16px, 1.6vw, 19px); color: var(--ink-2); max-width: 60ch; margin-top: 12px; line-height: 1.45; }
 @media (max-width: 1080px) {
   .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .span2 { grid-column: 1 / -1; }
@@ -1683,6 +1860,7 @@ table.ac td { vertical-align: middle; }
   .answers { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .eq-fbcard { grid-column: 1 / -1; }
   .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); } .step::after { display: none; }
+  .card.bluf { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 720px) {
   table.sct th, table.sct td { padding: 10px 6px; }
@@ -1720,6 +1898,10 @@ table.ac td { vertical-align: middle; }
   .rr { grid-template-columns: minmax(0, 128px) minmax(0, 1fr) 40px; gap: 8px; font-size: 12.5px; }
   .sg .lg { display: none; } .sg .sm { display: inline; } .sg span { padding: 0 6px; font-size: 11.5px; }
   .gloss { grid-template-columns: minmax(0, 1fr); gap: 2px; } .gloss dd { margin-bottom: 8px; }
+  .card.bluf { padding: 22px 18px 20px; gap: 16px; }
+  .bl li { grid-template-columns: 26px minmax(0, 1fr); gap: 10px; } .bl-n { width: 24px; height: 24px; font-size: 12px; }
+  .qr { grid-template-columns: minmax(0, 1fr); gap: 4px; padding: 12px 10px; margin: 0 -10px; } .qr-go { display: none; }
+  .tr { grid-template-columns: minmax(0, 1fr) 48px; gap: 4px 12px; } .tr-l { grid-column: 1 / -1; } .tr-ax > span:first-child { display: none; }
   .brand { font-size: 22px; }
   .top-right { width: 100%; justify-content: space-between; flex-wrap: nowrap; }
   .top { min-width: 0; width: 100%; }
@@ -1844,8 +2026,7 @@ JS = """
       var b = function (s) { var e = document.createElement('b'); e.textContent = s; return e; };
       if (!snap.size) { sum.textContent = 'No posts in the list yet.'; return; }
       sum.append(b(done + ' of ' + snap.size), ' checked. ', b(String(both)), ' closer to Instagram + Facebook, ', b(String(igOnly)), ' closer to Instagram only.');
-      var left = document.getElementById('ac-count');
-      if (left) left.textContent = String(snap.size - done);
+      document.querySelectorAll('.ac-left').forEach(function (el) { el.textContent = String(snap.size - done); });
     }, function () { sum.textContent = 'The check list could not load in this view.'; });
   });
 })();
@@ -1873,12 +2054,12 @@ def build():
   <div class="top">
     <div class="brand"><span class="mark">{MARK}</span>paid/organic</div>
     <div class="top-right">
-      <nav class="pills" aria-label="Sections">{'<a class="on" href="#start">Start</a>' if D.get("PM") else ""}<a{'' if D.get("PM") else ' class="on"'} href="#overview">Overview</a><a href="#findings">Findings</a>{'<a href="#equation">Equation</a>' if D.get("EQ") else ""}{'<a href="#targets">Targets</a>' if D["TG"] else ""}<a href="#model">Model</a><a href="#faq">FAQ</a></nav>
+      <nav class="pills" aria-label="Sections">{'<a class="on" href="#start">Answers</a>' if D.get("PM") else ""}<a{'' if D.get("PM") else ' class="on"'} href="#overview">Overview</a><a href="#findings">Findings</a>{'<a href="#equation">Equation</a>' if D.get("EQ") else ""}{'<a href="#targets">Targets</a>' if D["TG"] else ""}<a href="#model">Model</a><a href="#faq">FAQ</a></nav>
       <div class="seg-ctl theme" role="group" aria-label="Color theme"><button type="button" data-theme-btn="light" aria-pressed="true" aria-label="Light mode">{SUN}<span>Light</span></button><button type="button" data-theme-btn="dark" aria-pressed="false" aria-label="Dark mode">{MOON}<span>Dark</span></button></div>
     </div>
   </div>
   <div class="title-row">
-    <h1>Paid vs Organic</h1>
+    <div><h1>Paid vs Organic</h1>{'<p class="lede">Can we split a boosted post&#8217;s views into organic and paid? Answers first, proof below.</p>' if D.get("PM") else ""}</div>
     <div class="dates"><span class="vs">Paid posts tracked</span><span tabindex="0" data-tip="{esc(f"Daily reads of {R['panel']['posts']} paid Instagram posts, used to test whether total minus paid equals organic.")}">{CAL}{day(R['panel']['obs_from'], True)} – {day(R['panel']['obs_to'], True)}</span><span class="vs">Model test posts</span><span tabindex="0" data-tip="Posts published in this window were kept out of training and scored once per model version.">{CAL}{day(t0)} – {day(t1, True)}</span></div>
   </div>
   {start(D)}
