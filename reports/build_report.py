@@ -479,6 +479,56 @@ def waffle(rows):
     return f'<div class="waffle" role="img" aria-label="Paid impressions by placement: {", ".join(f"{r["placement"]} {pct(v / 100, 2)}" for r, v in zip(rows, raw))}">{cells}</div>'
 
 
+def mbars(rows, top=1.0, fmt=pct):
+    """small horizontal bars on one 0-to-top scale: (label, value, color class); the value is printed at the end"""
+    return ('<div class="mb">' + "".join(
+        f'<div class="mb-r {c}"><span class="mb-l">{esc(lab)}</span><div class="mb-t"><i class="grow" style="width:{100 * min(v, top) / top:.1f}%;--d:{.1 * i:.1f}s"></i></div>'
+        f'<b>{fmt(v)}</b></div>' for i, (lab, v, c) in enumerate(rows)) + '</div>')
+
+
+def post100(ps, gap):
+    """one typical boosted post as 100 views: paid, organic, and the size of a typical paid miss (hatched)"""
+    return (f'<div class="p100" role="img" aria-label="A typical boosted post: {round(100 * ps)} of 100 views are paid; the paid count misses by about {round(100 * gap)}.">'
+            f'<i class="sg i" style="width:{100 * ps:.1f}%"><span>{round(100 * ps)} paid</span></i><i class="sg o" style="width:{100 * (1 - ps):.1f}%"></i>'
+            f'<i class="lim-err" style="left:{100 * (ps - gap):.1f}%;width:{100 * 2 * gap:.1f}%"></i></div>'
+            f'<div class="p100-l"><span>100 views</span><span>{round(100 * (1 - ps))} {term("o", "organic")}</span></div>')
+
+
+def reach100(a, b):
+    """how close the parts come to the total: solid to a, light to b, a line at 100%"""
+    return (f'<div class="r100" role="img" aria-label="Parts add up to {pct(a)} of the total, {pct(b)} with the Facebook correction."><i class="r100-a" style="width:{100 * a:.1f}%"></i>'
+            f'<i class="r100-b" style="left:{100 * a:.1f}%;width:{100 * max(b - a, 0):.1f}%"></i><i class="r100-one"></i></div>'
+            f'<div class="r100-l"><span>{pct(a)} parts</span><span>+ Facebook correction = {pct(b)}</span><span>100% total</span></div>')
+
+
+def dots100(hit, lab):
+    """100 squares; the first `hit` are marked"""
+    return (f'<div class="d100" role="img" aria-label="{hit} of 100 {esc(lab)}">' + "".join(f'<i class="{"h" if i < hit else ""}"></i>' for i in range(100))
+            + f'</div><p class="bt-cap"><b>{hit}</b> of 100 {esc(lab)}</p>')
+
+
+def ratio_chips(rows):
+    """paid metric chips: extra views ÷ metric, the best one marked"""
+    return ('<div class="rc">' + "".join(f'<span class="rc-i{" on" if on else ""}"><b>{times(v) if v < 10 else f"{v:.0f}×"}</b>{esc(n)}</span>' for n, v, on in rows)
+            + '</div><p class="bt-cap">Extra views ÷ paid metric. 1× = exact match.</p>')
+
+
+def stat2(rows):
+    return '<div class="s2">' + "".join(f'<div><b>{v}</b><span>{esc(n)}</span></div>' for v, n in rows) + '</div>'
+
+
+def split2(a, la, lb):
+    """one bar split in two: a and 1 - a"""
+    return (f'<div class="fbx-bar"><i class="sg ip" style="width:{100 * a:.1f}%"><span>{pct(a)}</span></i><i class="sg fp" style="width:{100 * (1 - a):.1f}%"><span>{pct(1 - a)}</span></i></div>'
+            f'<div class="fbx-lab"><span style="width:{100 * a:.1f}%">{esc(la)}</span><span>{esc(lb)}</span></div>')
+
+
+def cols(rows):
+    """small columns on a 0-100% scale"""
+    return ('<div class="c5">' + "".join(f'<div class="c5-c"><b>{pct(v)}</b><div class="c5-t"><i style="height:{100 * v:.1f}%"></i></div><span>{esc(n)}</span></div>'
+                                         for n, v in rows) + '</div>')
+
+
 def start(D):
     """Start here: the goal, the ask, the outcome, and the four steps from a post to its true organic and paid views."""
     E, M, P = D.get("EQ"), D.get("PM"), (D["C2"] or D["C"])["platforms"]
@@ -511,77 +561,116 @@ def start(D):
     so = E["socapi"]
     other = sum(r["impressions"] for r in E["placements"]["rows"][2:]) / sum(r["impressions"] for r in E["placements"]["rows"])
 
-    # bottom line first: three answers, then what Paid Media can do
-    bl = [("Total − a paid metric does not give one post's organic.",
-           f'Even the best paid metric (impressions) is {pct(sub_["median_abs_error"])} off for a typical post, and {pct(sub_["negative_organic"])} of posts go below zero '
-           f'({sub_["posts"]} Instagram posts, checked against creator data).'),
-          ("A repeatable way works: the views just before the boost, grown at the normal organic rate.",
-           f'{pct(curve["median_abs_error"], 1)} off for a typical post, never below zero ({curve["posts"]} posts). It now gives an organic number for '
-           f'{pct(split(ig))} of boosted Instagram posts and {pct(split(tt))} of boosted TikTok posts.'),
-          ("For posts VN boosted, organic + boosted = the total seen, once Facebook is counted.",
-           f'Our parts add up to {pct(best["median"])} of the total for a typical post, {pct(eqf["median"])} with a small Facebook correction ({best["posts"]} posts).')]
+    # bottom line: three answers as numbers with a small chart each; the detail sits in a tooltip
+    ps, gap = R["paid_share_of_public"]["median"], E["instagram_side"]["Impressions"]["median_abs_gap"]
+    tg = R["post_id_tag"]
+    conf = R["production_function_by_confidence"]
+    pl = E["placements"]["rows"]
+    ptot = sum(r["impressions"] for r in pl)
+    tiles = [("w", "Total − a paid metric = organic?", "No, not for one post.", f'{pct(sub_["median_abs_error"])} off',
+              f'for a typical post. Organic goes below zero on {pct(sub_["negative_organic"])} of posts.',
+              post100(ps, gap) + f'<p class="bt-cap">A typical boosted post: {round(100 * ps)} of 100 views are paid. The paid count misses by about {round(100 * gap)} (hatched), which is most of organic.</p>',
+              f'Best paid metric (impressions), {sub_["posts"]} boosted Instagram posts, checked against creator data (opt-in). One read per post, 2 or more days after the last ad day.'),
+             ("o", "A repeatable way to find organic?", "Yes: the views just before the boost.", f'{pct(curve["median_abs_error"], 1)} off',
+              "for a typical post. Never below zero.",
+              mbars([("Total − paid impressions", sub_["median_abs_error"], "w"), ("Views before the boost × normal growth", curve["median_abs_error"], "o")], top=1,
+                    fmt=lambda v: pct(v, 1) if v < .2 else pct(v)),
+              f'Take the last view count before the boost and grow it at the normal organic rate. {curve["posts"]} boosted Instagram posts, checked against creator data; '
+              f'{pct(curve["within_25pct"])} are within 25%.'),
+             ("i", "Organic + boosted = total seen?", "Yes, once Facebook is counted.", pct(eqf["median"]),
+              f'of the total for a typical post, with a small Facebook correction ({pct(best["median"])} without).',
+              reach100(best["median"], eqf["median"]) + f'<p class="bt-cap"><span class="pill warn">{best["posts"]} posts</span> In-app check: '
+              f'<b class="ac-left">{best["posts"]}</b> of {best["posts"]} still to do.</p>',
+              f'Organic (creator data) + paid Instagram impressions + paid Facebook plays, against the SocAPI total (Instagram + Facebook). '
+              f'Correction: paid Facebook plays × {k:.1f}, fitted on the other posts each time.')]
+    tile = lambda i, t: (f'<div class="bt {t[0]}"><span class="bt-k">{esc(t[1])}{info(t[6])}</span><b class="bt-a">{esc(t[2])}</b>'
+                         f'<div class="bt-num"><b class="bt-v">{t[3]}</b><span>{esc(t[4])}</span></div>{t[5]}</div>')
     asks = [("Tag every boosted ad with the post ID or URL.", "Gives the exact start date and the paid numbers for each post."),
-            ("Boost after day 3, best after day 7–14. Or use a dark post.", "A boost in the first days leaves no organic-only views to measure."),
-            (f"Check the {best['posts']} totals in the Instagram app.", "Confirms which total the app shows (Instagram only, or Instagram + Facebook).")]
-    bottom = ('<article class="card span3 bluf"><span class="kicker">Bottom line</span><ol class="bl">'
-              + "".join(f'<li><span class="bl-n">{i}</span><div><b>{esc(t)}</b><span>{x}</span></div></li>' for i, (t, x) in enumerate(bl, 1))
-              + '</ol><div class="bl-ask"><span class="bl-ak">What we need from Paid Media</span><ul>'
-              + "".join(f'<li><b>{esc(t)}</b><span>{esc(why)}</span></li>' for t, why in asks) + '</ul></div>'
-              + f'<p class="bl-cav"><span class="pill warn">What could change this</span><span>The sum rests on {best["posts"]} posts so far, and TikTok has no '
-                'creator data that counts organic only, so no TikTok estimate can be checked yet.</span></p></article>')
+            ("Boost on day 3 or later, best day 7–14. Or use a dark post.", "A boost in the first days leaves no organic-only views to grow forward."),
+            ("Run one TikTok post as a dark post.", "TikTok creator data also counts Spark Ad views, so today we cannot check TikTok organic.")]
+    bottom = ('<article class="card span3 bluf"><span class="kicker">Bottom line</span><div class="bt3">'
+              + "".join(tile(i, t) for i, t in enumerate(tiles)) + '</div>'
+              + '<div class="ask3"><span class="bl-ak">The math works when Paid Media does this</span><ol>'
+              + "".join(f'<li><span class="a3-n">{i}</span><span>{tipped(t, why)}</span></li>' for i, (t, why) in enumerate(asks, 1)) + '</ol></div>'
+              + f'<p class="bl-cav"><span class="pill warn">What could change this</span><span>The Facebook sum rests on {best["posts"]} posts, and no one has checked the totals in the app yet.</span></p></article>')
 
-    qa = [("Does total − a paid metric = organic?", "No, not for one post.",
-           f'Best metric: {pct(sub_["median_abs_error"])} off, {pct(sub_["negative_organic"])} of posts below zero. Paid is {pct(R["paid_share_of_public"]["median"])} of the views, '
-           'so a small paid miss is a big organic miss.', "#overview"),
-          ("Which paid metric matches the views?", "Impressions on Instagram. Video plays on Facebook.",
-           f'Extra views on Instagram = {times(mm_ig["Impressions"]["median"])} paid impressions. Facebook part = {times(mm_fb["Video plays (starts)"]["median"])} paid plays. '
-           f'3-second views, ThruPlays and other view types are {min(view_types):.0f}–{max(view_types):.0f}× too small.', "#eq-types"),
-          ("Is there a repeatable way to find organic?", "Yes: the views before the boost × normal organic growth.",
-           f'{pct(curve["median_abs_error"], 1)} off ({curve["posts"]} posts). With no start date, the start is found from the jump in daily views'
-           + (f' ({pct(bs["median_abs_error"], 1)} off, {bs["posts"]} posts).' if bs else "."), "#findings"),
-          ("Does organic + boosted = the total seen?", "Yes, once Facebook is counted.",
-           f'{pct(best["median"])} of the total for a typical post. Facebook is {pct(so["facebook_share_of_total_median"])} of the total; '
-           f'placements other than Facebook and Instagram get {pct(other, 2)} of paid impressions.', "#equation"),
-          ("Is the total in our data the total in the app?", "Not yet confirmed.",
-           f'Our public views (Nimble) count Instagram only. A shared list of {best["posts"]} posts is ready to check in the app: '
-           f'<b class="ac-left">{best["posts"]}</b> still to check.', "#appcheck"),
-          ("Do we still need dark posts?", "Only for boosts in the first days.",
-           f'Those posts have no organic-only views before the boost: {early(ig):,} Instagram and {early(tt):,} TikTok posts today. '
+    # every question: the short answer and one number in the row; open it for a small chart and the proof
+    n_early = early(ig) + early(tt)
+    qs = [("Does total − a paid metric = organic?", "No", "no", f'{pct(sub_["median_abs_error"])} off', post100(ps, gap),
+           f'Best paid metric (impressions): {pct(sub_["median_abs_error"])} off for a typical post. Organic goes below zero on {pct(sub_["negative_organic"])} of posts '
+           f'({sub_["posts"]} Instagram posts). Paid is {pct(ps)} of a boosted post\'s views, so a small paid miss is most of organic.', "#overview"),
+          ("Which paid metric matches the views?", "Impressions · plays", "info", f'{times(mm_ig["Impressions"]["median"])} · {times(mm_fb["Video plays (starts)"]["median"])}',
+           ratio_chips([("Impressions", mm_ig["Impressions"]["median"], True), ("Video plays", mm_ig["Video plays (starts)"]["median"], False),
+                        ("3-second views", mm_ig["3-second video views"]["median"], False), ("25% watched", mm_ig["25% watched"]["median"], False),
+                        ("ThruPlays", mm_ig["ThruPlays"]["median"], False), ("100% watched", mm_ig["100% watched"]["median"], False)]),
+           f'Instagram: extra views = {times(mm_ig["Impressions"]["median"])} paid impressions ({mm_ig["Impressions"]["n"]} posts). Facebook: '
+           f'{times(mm_fb["Video plays (starts)"]["median"])} paid video plays ({best["posts"]} posts). The other view types are {min(view_types):.0f} to {max(view_types):.0f} times too small.', "#eq-types"),
+          ("We started with the post-ID tagged posts. What do they show?", "Same: it fails", "no", f'{pct(tg["public - paid IG impressions"]["negative_organic"])} below zero',
+           dots100(round(100 * tg["public - paid IG impressions"]["negative_organic"]), "days with negative organic"),
+           f'{tg["posts"]} tagged Instagram posts have daily creator data. On {round(tg["post_days"] * tg["public - paid IG impressions"]["negative_organic"])} of '
+           f'{tg["post_days"]} days while the ads ran, total − paid impressions gave negative organic. That is too few posts alone, so we added '
+           f'{R["panel"]["posts"] - tg["posts"]} boosted posts matched by the post key in the ad name ({R["panel"]["posts"]} in total, reads from {day(R["panel"]["obs_from"], True)}).', "#faq"),
+          ("Is there a repeatable way to find organic?", "Yes", "yes", f'{pct(curve["median_abs_error"], 1)} off',
+           mbars([("Read on day 14+", conf["high"]["median_abs_error"], "o"), ("Read on day 7–13", conf["medium"]["median_abs_error"], "o"),
+                  ("Read before day 7", conf["low"]["median_abs_error"], "w")], top=.5, fmt=lambda v: pct(v, 1)),
+           f'The last view count before the boost, grown at the normal organic rate: {pct(curve["median_abs_error"], 1)} off for a typical post, '
+           f'{pct(curve["within_25pct"])} within 25%, never below zero ({curve["posts"]} posts). The later the read, the better.'
+           + (f' With no ad date, the start comes from the jump in daily views: {pct(bs["median_abs_error"], 1)} off ({bs["posts"]} posts).' if bs else ""), "#findings"),
+          ("Do we still need dark posts?", "Before day 3", "part", f'{n_early:,} posts',
+           stat2([(f"{early(ig):,}", "Instagram"), (f"{early(tt):,}", "TikTok")]),
+           "These boosted posts were boosted before day 3 or before our first read, so there are no organic-only views to grow. "
            + (f'Every other signal we tried is {min(cr_err):.0%}–100% off.' if cr_err else ""), "#tried"),
-          ("Do we need the model for this?", "Not for posts VN boosted. Only to find boosts with no ad record.",
-           f'{pct(share_model(ig))} of boosted Instagram posts have no ad record. The model catches {pct(im["recall"])} of Instagram boosts; '
-           f'the simple rule (views above followers and engagement below 1%) catches {pct(rule["recall"])}.', "#need")]
-    answers = ('<article class="card span3"><div class="card-head"><h3>Paid Media\'s questions, answered</h3>'
-               '<p class="card-sub">Short answer in bold. Select a row to see its proof.</p></div><div class="qr-list">'
-               + "".join(f'<a class="qr" href="{h}"><span class="qr-q">{esc(q)}</span><span class="qr-a"><b>{esc(a_)}</b><span>{x}</span></span>'
-                         f'<span class="qr-go" aria-hidden="true">Proof →</span></a>' for q, a_, x, h in qa)
-               + '</div><p class="proof"><b>Which posts.</b> We started with the posts tagged with a post ID in the paid table (tags began in September 2026): '
-               f'only {tags.get("Instagram", 0) + tags.get("Tiktok", 0)} posts so far, too few. So we went further back and matched ads to posts by the post key in the ad name: '
-               f'{links.get("Instagram", 0):,} Instagram and {links.get("Tiktok", 0):,} TikTok posts. Organic truth = creator account data (opt-in), Instagram only.</p></article>')
+          ("For posts VN boosted: organic + boosted = total seen?", "Yes, with Facebook", "yes", f'{pct(best["median"])} → {pct(eqf["median"])}',
+           reach100(best["median"], eqf["median"]),
+           f'Organic + paid Instagram impressions + paid Facebook plays = {pct(best["median"])} of the SocAPI total for a typical post; all {best["posts"]} posts are within 25%. '
+           f'With paid Facebook plays × {k:.1f}: {pct(eqf["median"])}, and {round(eqf["within_10pct"] * eqf["posts"])} of {eqf["posts"]} posts are within 10%.', "#equation"),
+          ("Callout 1: how much of the total is Facebook?", "Most of it", "info", pct(so["facebook_share_of_total_median"]),
+           split2(1 - so["facebook_share_of_total_median"], "Instagram (Nimble)", "Facebook"),
+           f'Nimble shows only the Instagram part. SocAPI\'s Instagram plays equal Nimble ({so["instagram_plays_over_nimble_median"]:.2f}×); '
+           f'the full total is {so["total_over_nimble_median"]:.2f}× Nimble for a typical post ({so["posts"]} posts).', "#eq-fb"),
+          ("Callout 2: do other placements matter?", "No", "yes", f'{pct(other, 2)}',
+           f'<div class="wf-mini">{waffle(pl)}</div>',
+           f'Audience Network, Messenger and unknown placements get {pct(other, 2)} of paid impressions. Facebook gets {pct(pl[0]["impressions"] / ptot, 1)}, '
+           f'Instagram {pct(pl[1]["impressions"] / ptot, 1)} ({ptot:,} paid impressions on ads linked to Instagram campaign posts).', "#eq-types"),
+          ("Callout 3: is our total the total in the app?", "Not checked yet", "wait", f'<span class="ac-left">{best["posts"]}</span> left',
+           f'<div class="acp"><div class="acp-t"><i class="ac-prog" style="width:0%"></i></div><span><b class="ac-done">0</b> of {best["posts"]} checked</span></div>',
+           f'Nimble counts Instagram only. Open each of the {best["posts"]} posts in the app and type the view count you see. The list is shared, and the page says which total each count is closer to.', "#appcheck"),
+          ("The simple rule (ER < 1%, views > followers) vs the model?", "Model finds more", "info", f'{pct(rule["recall"])} → {pct(im["recall"])}',
+           mbars([("Rule: boosts found", rule["recall"], "n"), ("Model: boosts found", im["recall"], "i"),
+                  ("Rule: flags right", rule["precision"], "n"), ("Model: flags right", im["precision"], "i")], top=1),
+           f'Instagram test posts, {im["tp"] + im["fn"]} boosted. The rule flags {pct(rule["fpr"])} of unboosted posts. TikTok: the rule finds '
+           f'{pct(P["Tiktok"]["rules_test"][HAND_RULE]["recall"])}, the model {pct(tm["recall"])}. Posts VN boosted have ad records, so the equation needs neither.', "#need")]
+    rows_q = "".join(f'<details class="qx"><summary><span class="qx-n">{i}</span><span class="qx-q">{esc(q)}</span><span class="qx-v {vc}">{esc(v)}</span>'
+                     f'<b class="qx-k">{key}</b><span class="qx-c" aria-hidden="true"></span></summary>'
+                     f'<div class="qx-b"><div class="qx-viz">{viz}</div><div class="qx-t"><p>{txt}</p><a href="{h}">See the proof →</a></div></div></details>'
+                     for i, (q, v, vc, key, viz, txt, h) in enumerate(qs, 1))
+    answers = ('<article class="card span3" id="questions"><div class="card-head qx-head"><div><h3>Paid Media\'s questions, answered</h3>'
+               '<p class="card-sub">Short answer and one number per row. Open a row for its chart and proof.</p></div>'
+               '<button type="button" class="qx-all" data-open="0">Open all</button></div><div class="qx-list">' + rows_q + '</div>'
+               f'<p class="proof"><b>Basis.</b> Organic truth = creator account data (opt-in), Instagram only. Typical = the median post. '
+               f'Post-ID tags so far: {tags.get("Instagram", 0) + tags.get("Tiktok", 0)} posts; ads matched by the post key in the ad name: '
+               f'{links.get("Instagram", 0):,} Instagram and {links.get("Tiktok", 0):,} TikTok posts.</p></article>')
 
-    def step(n, q, body, proof, href):
-        return (f'<a class="step" href="{href}"><span class="step-n">{n}</span><h3>{q}</h3>{body}'
-                f'<span class="step-p">{proof}</span></a>')
+    def step(n, q, big, small, tip, proof, href):
+        return (f'<div class="step"><span class="step-n">{n}</span><h3>{q}</h3><div class="step-v"><b>{big}</b><span>{small}{info(tip)}</span></div>'
+                f'<a class="step-p" href="{href}">{proof} →</a></div>')
     steps = ('<div class="steps">'
-             + step(1, "Was it boosted?",
-                    f'<p>Our ad records say so for <b>{ig["boosted_by_record"]:,}</b> Instagram and <b>{tt["boosted_by_record"]:,}</b> TikTok posts. '
-                    f'When there is no record, the model checks the view pattern. It finds <b>{ig["boosted_by_model"]:,}</b> more on Instagram and <b>{tt["boosted_by_model"]:,}</b> more on TikTok.</p>',
-                    f'{round(100 * im["precision"])} in 100 model flags are right (test posts).', "#model")
-             + step(2, f"How many views are {term('o', 'organic')}?",
-                    '<p>Creator account data when we have it. If not, the views just before the boost, grown at the normal rate. '
-                    'With no start date, the start is found from the jump in daily views.</p>',
-                    f'Known start: {pct(curve["median_abs_error"], 1)} off for a typical post ({curve["posts"]} posts). '
-                    + (f'Start found from the jump: {pct(bs["median_abs_error"], 1)} off ({bs["posts"]} posts).' if bs else ""), "#gaps")
-             + step(3, f"How many are {term('i', 'paid')}?",
-                    f'<p>Total − the organic estimate. Paid is most of the views, so a small organic miss is a tiny paid miss.</p>',
-                    f'{pct(pd_["public_minus_organic_estimate"]["median_abs_error"])} off for a typical post ({pd_["public_minus_organic_estimate"]["posts"]} posts). '
-                    f'Ad impressions alone: {pct(pd_["paid_instagram_impressions"]["median_abs_error"])} off.', "#findings")
-             + step(4, "What was the total seen?",
-                    f'<p>Nimble shows Instagram only. Add {term("f", "Facebook")}: about {k:.1f} × paid Facebook plays.</p>',
-                    f'{pct(fb["total_from_nimble_plus_k_fb_plays"]["median_abs_error"], 1)} off for a typical post. Only {fb["total_from_nimble_plus_k_fb_plays"]["posts"]} posts so far.', "#equation")
+             + step(1, "Was it boosted?", f'{boosted(ig) + boosted(tt):,}', "boosted posts: ad record or model flag",
+                    f'Ad records: {ig["boosted_by_record"]:,} Instagram and {tt["boosted_by_record"]:,} TikTok posts. With no record, the model reads the view pattern: '
+                    f'{ig["boosted_by_model"]:,} more on Instagram and {tt["boosted_by_model"]:,} more on TikTok.',
+                    f'{round(100 * im["precision"])} in 100 model flags are right.', "#model")
+             + step(2, f"How many views are {term('o', 'organic')}?", f'{pct(curve["median_abs_error"], 1)} off', "views before the boost × normal growth",
+                    'Creator account data when we have it. If not, the views just before the boost, grown at the normal rate. With no start date, the start comes from the jump in daily views.',
+                    f'{curve["posts"]} posts vs creator data.', "#gaps")
+             + step(3, f"How many are {term('i', 'paid')}?", f'{pct(pd_["public_minus_organic_estimate"]["median_abs_error"], 1)} off', "total − the organic estimate",
+                    f'Paid is most of the views, so a small organic miss is a tiny paid miss. Paid ad impressions alone: {pct(pd_["paid_instagram_impressions"]["median_abs_error"])} off.',
+                    f'{pd_["public_minus_organic_estimate"]["posts"]} posts vs creator data.', "#findings")
+             + step(4, "What was the total seen?", f'{pct(fb["total_from_nimble_plus_k_fb_plays"]["median_abs_error"], 1)} off', f"Nimble + {k:.1f} × paid Facebook plays",
+                    'Nimble shows the Instagram part only. The Facebook part is about 1.1 × the paid Facebook plays.',
+                    f'Only {fb["total_from_nimble_plus_k_fb_plays"]["posts"]} posts so far.', "#equation")
              + '</div>')
     flow = claim_card("How it works", "Four questions take a post from public views to its true organic and paid views.",
-                      steps, f"Counts: daily table run 2026-10-08 (ad records read 2026-10-07). Errors: posts with creator data or SocAPI data, one read per post at least 2 days after the last ad day. "
+                      steps, f"Counts: daily table run 2026-10-08 (ad records read 2026-10-07). Errors: typical post vs creator data or SocAPI, one read per post 2 or more days after the last ad day. "
                              f"Model test: posts published {day(D['C2'].get('test_cutoff', '2026-07-01'))} – {day(D['C2'].get('test_end', '2026-09-09'), True)}.",
                       cls="span3")
 
@@ -598,43 +687,40 @@ def start(D):
                      cov_bar(ig, "Instagram") + cov_bar(tt, "TikTok")
                      + legend([("cov-k cd", "Creator data (measured)"), ("cov-k es", "Known start date"),
                                ("cov-k ej", "Start found from the view jump"), ("cov-k ms", "Missing: no split yet")])
+                     + '<details class="more-d"><summary>Show the counts</summary>'
                      + table(["Boosted posts", "Creator data", "Known start", "View jump", "Missing"],
                              [[lab] + [f'{c["organic_from"][k_]:,}' for k_ in ("creator_data", "estimated_known_start", "estimated_view_jump", "missing")]
-                              for c, lab in ((ig, "Instagram"), (tt, "TikTok"))])
-                     + f'<p class="claim-note">New: for {ig["organic_from"]["estimated_view_jump"] + tt["organic_from"]["estimated_view_jump"]:,} boosted posts with no start date, '
-                       f'the start is now found from the jump in daily views. Missing means there are no clean views before the boost. '
-                       f'<a href="#gaps">See the fixes</a></p>',
-                     f"Boosted = ad record or model flag. Daily table: evidence read 2026-10-07, daily views pulled 2026-10-08. TikTok has no creator data that counts organic only. "
+                              for c, lab in ((ig, "Instagram"), (tt, "TikTok"))]) + '</details>',
+                     f"Boosted = ad record or model flag. Missing = no clean views before the boost (<a href=\"#gaps\">fixes</a>). Daily table: evidence read 2026-10-07, daily views pulled 2026-10-08. "
                      f"The model cannot score {ig['not_scored']:,} Instagram and {tt['not_scored']:,} TikTok posts, mostly because we have no public read in their first 60 days.",
                      cls="span2")
     need = claim_card("Do we need the model?",
                       "Not for posts VN boosted. Yes, to find boosts with no ad record.",
                       f'<div class="facts"><div><b class="t i">{pct(share_model(ig))}</b><span>of boosted Instagram posts have no ad record. Only the model finds them.</span></div>'
                       f'<div><b class="t i">{pct(share_model(tt))}</b><span>of boosted TikTok posts have no ad record.</span></div>'
-                      f'<div><b>{pct(im["recall"])}</b><span>of Instagram boosts caught by the model, {pct(rule["recall"])} by the simple rule '
-                      f'(views above followers and engagement below 1%).</span></div></div>',
+                      f'<div><b>{pct(im["recall"])}</b><span>of Instagram boosts found by the model, {pct(rule["recall"])} by the simple rule.</span></div></div>',
                       f"Posts VN boosted have ad records, so the equation needs no model. Model vs rule: Instagram test posts, {im['tp'] + im['fn']} boosted. "
                       f"The rule is right on {pct(rule['precision'])} of its flags, the model on {pct(im['precision'])}.", attrs='id="need"')
     nj = MR.get("no_clear_jump_instagram_optin")
-    gaps = [(f"{early(ig):,} Instagram and {early(tt):,} TikTok posts boosted before day 3 or before our first read",
-             "No organic-only views exist before the boost, so there is nothing to grow forward. "
-             + (f"Every other signal we tried is {min(cr_err):.0%}–100% off (below)." if cr_err else ""),
-             "Boost after day 3, best after day 7–14, or use a dark post. Read new posts from day 0.", "Paid Media"),
+    gaps = [(f"{early(ig):,} Instagram and {early(tt):,} TikTok posts boosted before day 3",
+             "Boosted before day 3 or before our first read. No organic-only views exist before the boost, so there is nothing to grow forward."
+             + (f" Every other signal we tried is {min(cr_err):.0%}–100% off." if cr_err else ""),
+             "Boost on day 3 or later, or use a dark post.", "Paid Media"),
             (f"{ig[mr]['no_clear_jump']:,} Instagram and {tt[mr]['no_clear_jump']:,} TikTok posts with no clear jump",
              "The daily views never jump, so we cannot see when the boost started."
              + (f" Most are small boosts: on {nj['posts']} such Instagram posts with creator data, a typical {pct(nj['paid_share_median'])} of views are paid "
                 f"(the {R['paid_share_of_public']['n']} boosted posts in the subtraction test: {pct(R['paid_share_of_public']['median'])})." if nj else ""),
-             "Match them to ad records where we can. Until then, the public total is the most organic can be.", "BI · next"),
+             "Match them to ad records.", "BI · next"),
             ("TikTok organic after a boost", "TikTok creator data also counts Spark Ad views, so we cannot check the estimate.",
              "Run one TikTok dark-post test.", "Paid Media"),
-            (f"The Facebook correction ({k:.1f}×)", f"It rests on {fb['total_from_nimble_plus_k_fb_plays']['posts']} posts.",
-             f"Check the {best['posts']} posts in the Instagram app. Collect more SocAPI reads.", "BI + Paid Media")]
-    rows = "".join(f'<li><span class="gap-n">{i}</span><div><b>{esc(w)}</b><span>{esc(why)}</span></div><div><span class="gap-fix">{esc(fix)}</span>'
+            (f"The Facebook correction ({k:.1f}×)", f"It rests on {fb['total_from_nimble_plus_k_fb_plays']['posts']} posts with SocAPI data.",
+             f"Check the {best['posts']} posts in the app. Collect more SocAPI reads.", "BI + Paid Media")]
+    rows = "".join(f'<li><span class="gap-n">{i}</span><div><b>{esc(w)}{info(why)}</b></div><div><span class="gap-fix">{esc(fix)}</span>'
                    f'<span class="gap-o">{esc(o)}</span></div></li>' for i, (w, why, fix, o) in enumerate(gaps, 1))
-    miss = claim_card("What is still missing", f"We can now estimate most of what we do not measure. {len(gaps)} gaps remain, and each has a fix.",
+    miss = claim_card("What is still missing", f"{len(gaps)} gaps remain, and each has a fix.",
                       f'<ol class="gaps">{rows}</ol>',
                       f"Daily table, data read 2026-10-07; daily views pulled 2026-10-08. View-jump test: {(D.get('BS') or {}).get('posts', {}).get('ig_boosted', 0) + (D.get('BS') or {}).get('posts', {}).get('tt_boosted', 0):,} boosted posts, "
-                      "tuned on half and scored once on the other half (results/boost_start_eval.json). Paid can be predicted wherever organic can (step 3).",
+                      "tuned on half and scored once on the other half. Paid can be predicted wherever organic can (step 3).",
                       cls="span3", attrs='id="gaps"')
     tried = ""
     if MR and bs:
@@ -652,23 +738,26 @@ def start(D):
                      f'<b>{pct(e["median_abs_error"], 1) if e["median_abs_error"] < .2 else pct(e["median_abs_error"])}</b></div>'
                      for i, (n_, e, on, why) in enumerate(rows_))
         tr += '<div class="tr tr-ax"><span></span><div class="rr-ticks"><span style="left:0%">0%</span><span style="left:25%">25%</span><span style="left:50%">50%</span><span style="left:100%">100% off</span></div><b></b></div>'
+        g = lambda p, ph: su[p][ph]["share_up_25pct"]
+        speed = mbars([("Instagram, first week of ads", g("Instagram", "first 7 days of ads"), "i"), ("Instagram, unboosted", g("Instagram", "organic posts"), "n"),
+                       ("TikTok, first week of ads", g("Tiktok", "first 7 days of ads"), "i"), ("TikTok, unboosted", g("Tiktok", "organic posts"), "n")], top=.5)
+        after = cols([("Before", aa["before the ads"]["paid_share_of_daily_gain_median"]), ("During", aa["during the ads"]["paid_share_of_daily_gain_median"]),
+                      ("+2 days", aa["2 days after"]["paid_share_of_daily_gain_median"]), ("+3 days", aa["3 days after"]["paid_share_of_daily_gain_median"]),
+                      ("Days 4–30", aa["4-30 days after"]["paid_share_of_daily_gain_median"])])
         tried = claim_card("Can we predict the posts we still miss?",
                            f"Only from the views before the boost. Every other signal we tried is {min(cr_err):.0%}–100% off for a typical post.",
                            f'<div class="tried" role="img" aria-label="Typical organic error by method">{tr}</div>'
                            + legend([("tr-k on", "In use"), ("tr-k", "Tested, not used")])
-                           + f'<p class="claim-note"><b>Does a boost show as faster growth?</b> Yes, but organic posts speed up often too. A rise of 25% or more in daily views shows in '
-                             f'{pct(su["Instagram"]["first 7 days of ads"]["share_up_25pct"])} of reads in the first week of ads and in {pct(su["Instagram"]["organic posts"]["share_up_25pct"])} '
-                             f'of reads on unboosted posts (Instagram; TikTok {pct(su["Tiktok"]["first 7 days of ads"]["share_up_25pct"])} vs {pct(su["Tiktok"]["organic posts"]["share_up_25pct"])}). '
-                             f'So we look for one large jump, not any speed-up. Paid views also do not stop when the ads stop: {pct(aa["2 days after"]["paid_share_of_daily_gain_median"])} of the daily gain '
-                             f'is still paid 2 days after the last ad day, and {pct(aa["4-30 days after"]["paid_share_of_daily_gain_median"])} on days 4–30.</p>',
+                           + f'<div class="two-mini"><div><h4>Does a boost show as faster growth?</h4>{speed}'
+                             '<p class="bt-cap">Share of reads where daily views rise 25% or more. Boosts speed up only a little more often than unboosted posts, so we look for one large jump.</p></div>'
+                             f'<div><h4>Do paid views stop when the ads stop?</h4>{after}'
+                             '<p class="bt-cap">Paid share of the daily gain in public views. Paid views fade slowly, so growth after the ads is not organic.</p></div></div>',
                            f"Error = typical gap to creator data (opt-in), Instagram boosted posts unless stated. Fitted parts were tuned on half the posts and scored once on the other half. "
-                           f"Speed-up: {su['Instagram']['first 7 days of ads']['intervals']:,} and {su['Instagram']['organic posts']['intervals']:,} read-to-read steps after day 3. "
+                           f"Speed-up: {su['Instagram']['first 7 days of ads']['intervals']:,} and {su['Instagram']['organic posts']['intervals']:,} Instagram read-to-read steps after day 3. "
                            f"After the ads: daily reads of {aa['during the ads']['posts']} boosted posts with creator data. Data read 2026-10-07 and 2026-10-08.",
                            cls="span3", attrs='id="tried"')
-    head = ('<div class="block-head"><div><h2>Answers first</h2><p class="card-sub">The bottom line, a short answer to each question, and what is still missing. '
-            'Each part links to its proof further down.</p></div></div>')
+    head = ('<div class="block-head"><div><h2>Answers first</h2><p class="card-sub">The bottom line, then each question with its answer. Open a row for the chart and proof.</p></div></div>')
     return f'<section id="start" class="block">{head}<div class="grid">{bottom}{answers}{flow}{cov}{need}{miss}{tried}</div></section>'
-
 
 def equation(D):
     """Posts VN boosted itself: does organic + boosted = the total seen on the platform? Claims first, each proved by one chart."""
@@ -1692,7 +1781,7 @@ footer { color: var(--muted); font-size: 13px; display: flex; justify-content: s
 .br-row a, .claim-note a { color: var(--accent-ink); white-space: nowrap; }
 .steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; counter-reset: s; }
 .step { position: relative; display: grid; align-content: start; gap: 8px; padding: 18px 18px 16px; border-radius: 20px; background: var(--n1); color: inherit; text-decoration: none; transition: transform .15s ease; }
-.step:hover { transform: translateY(-2px); } .step:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 .step:not(:last-child)::after { content: "→"; position: absolute; right: -13px; top: 22px; font-size: 16px; color: var(--faint); }
 .step-n { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--ink); color: var(--card); font-size: 12px; font-weight: 600; }
 .step h3 { font-size: 18px; }
@@ -1810,37 +1899,88 @@ table.ac td { vertical-align: middle; }
 .ac input { width: 120px; text-align: right; font-variant-numeric: tabular-nums; }
 .ac input:focus, .ac select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .ac .match-fb { color: var(--c-f-ink); font-weight: 500; } .ac .match-ig { color: var(--c-i-ink); font-weight: 500; }
-/* answers first: bottom line, questions answered, what we tried */
-.card.bluf { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); gap: 18px 36px; align-items: start; padding: 30px 30px 26px;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 5%, var(--card)), var(--card) 60%); }
-.bluf > .kicker, .bluf > .bl-cav { grid-column: 1 / -1; }
+/* answers first: bottom-line tiles, question dropdowns, small charts */
+.card.bluf { gap: 18px; padding: 28px 28px 24px; background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 5%, var(--card)), var(--card) 60%); }
 .bluf > .kicker { font-size: 13px; font-weight: 600; color: var(--accent-ink); }
-.bl { list-style: none; margin: 0; padding: 0; display: grid; gap: 18px; }
-.bl li { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 14px; align-items: start; }
-.bl-n { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--ink); color: var(--card); font-size: 13px; font-weight: 600; margin-top: 1px; }
-.bl li > div { display: grid; gap: 4px; }
-.bl b { font-size: clamp(18px, 1.8vw, 22px); font-weight: 500; letter-spacing: -.018em; line-height: 1.28; color: var(--ink); text-wrap: balance; }
-.bl li > div > span { font-size: 14.5px; color: var(--ink-2); max-width: 68ch; font-variant-numeric: tabular-nums; }
-.bl-ask { border-radius: 20px; background: var(--raise); border: 1px solid var(--rule); padding: 18px 20px; display: grid; gap: 12px; box-shadow: 0 6px 18px -12px rgba(17,18,20,.25); }
+.bt3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.bt { display: grid; align-content: start; gap: 10px; padding: 18px 18px 16px; border-radius: 20px; background: var(--raise); border: 1px solid var(--rule); min-width: 0; }
+.bt-k { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; font-weight: 500; color: var(--muted); }
+.bt-a { font-size: 17px; font-weight: 600; line-height: 1.3; color: var(--ink); }
+.bt-num { display: grid; gap: 2px; }
+.bt-v { font-size: clamp(36px, 4vw, 48px); font-weight: 500; letter-spacing: -.045em; line-height: 1; font-variant-numeric: tabular-nums; }
+.bt.w .bt-v { color: var(--warn); } .bt.o .bt-v { color: var(--c-o-ink); } .bt.i .bt-v { color: var(--c-i-ink); }
+.bt-num span { font-size: 13px; color: var(--ink-2); }
+.bt-cap { font-size: 12.5px; color: var(--muted); margin: 0; line-height: 1.45; } .bt-cap b { color: var(--ink); }
+.bt-cap .pill.warn { padding: 1px 8px; font-size: 11.5px; margin-right: 4px; }
 .bl-ak { font-size: 12.5px; font-weight: 600; color: var(--muted); }
-.bl-ask ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; counter-reset: ask; }
-.bl-ask li { display: grid; gap: 2px; padding-left: 28px; position: relative; counter-increment: ask; }
-.bl-ask li::before { content: counter(ask); position: absolute; left: 0; top: 1px; width: 20px; height: 20px; border-radius: 6px; background: var(--accent-soft); color: var(--accent-ink);
-  display: grid; place-items: center; font-size: 11.5px; font-weight: 600; }
-.bl-ask li b { font-size: 14.5px; font-weight: 500; color: var(--ink); line-height: 1.35; }
-.bl-ask li span { font-size: 13px; color: var(--muted); }
-.bl-cav { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; font-size: 13.5px; color: var(--ink-2); border-top: 1px solid var(--rule); padding-top: 14px; }
+.ask3 { display: grid; gap: 10px; }
+.ask3 ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.ask3 li { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border-radius: 14px; background: var(--accent-soft); font-size: 14px; font-weight: 500; color: var(--ink); line-height: 1.4; }
+.a3-n { flex: none; width: 22px; height: 22px; border-radius: 7px; background: var(--card); color: var(--accent-ink); display: grid; place-items: center; font-size: 12px; font-weight: 600; }
+.bl-cav { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; font-size: 13.5px; color: var(--ink-2); border-top: 1px solid var(--rule); padding-top: 14px; margin: 0; }
 .bl-cav .pill.warn { padding: 2px 10px; font-size: 12px; }
-.qr-list { display: grid; }
-.qr { display: grid; grid-template-columns: minmax(0, .95fr) minmax(0, 1.75fr) 64px; gap: 6px 26px; padding: 14px 12px; margin: 0 -12px; border-radius: 14px;
-  border-top: 1px solid var(--rule-2); color: inherit; text-decoration: none; align-items: start; }
-.qr:first-child { border-top: 0; }
-.qr:hover { background: var(--rule-2); } .qr:hover .qr-go { opacity: 1; }
-.qr-q { font-size: 15px; font-weight: 500; color: var(--ink); line-height: 1.4; }
-.qr-a { display: grid; gap: 3px; font-size: 13.5px; color: var(--muted); line-height: 1.45; font-variant-numeric: tabular-nums; }
-.qr-a > b { font-size: 15px; font-weight: 600; color: var(--ink); }
-.qr-a .ac-left { color: var(--ink); font-weight: 600; }
-.qr-go { font-size: 12.5px; font-weight: 500; color: var(--accent-ink); white-space: nowrap; text-align: right; padding-top: 2px; opacity: .7; }
+.mb { display: grid; gap: 8px; }
+.mb-r { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) 46px; gap: 10px; align-items: center; font-size: 12.5px; }
+.mb-l { color: var(--ink-2); line-height: 1.3; }
+.mb-t { position: relative; height: 10px; border-radius: 999px; background: var(--rule-2); overflow: hidden; }
+.mb-t i { position: absolute; left: 0; top: 0; bottom: 0; min-width: 3px; border-radius: 999px; background: var(--n3); transform-origin: left center; }
+.mb-r.o .mb-t i { background: var(--c-o); } .mb-r.w .mb-t i { background: var(--warn); } .mb-r.i .mb-t i { background: var(--c-i); }
+.mb-r > b { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); }
+.p100 { position: relative; display: flex; gap: 2px; height: 30px; margin-top: 6px; }
+.p100 .sg span { font-size: 12px; }
+.p100-l, .r100-l { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+.r100 { position: relative; height: 16px; border-radius: 999px; background: var(--rule-2); margin-top: 6px; }
+.r100-a { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 999px 0 0 999px; background: var(--c-i); }
+.r100-b { position: absolute; top: 0; bottom: 0; background: var(--c-f); opacity: .55; }
+.r100-one { position: absolute; right: 0; top: -5px; bottom: -5px; border-left: 2px dashed var(--ink); opacity: .55; }
+.d100 { display: grid; grid-template-columns: repeat(20, minmax(0, 1fr)); gap: 3px; max-width: 280px; }
+.d100 i { aspect-ratio: 1; border-radius: 2px; background: var(--n2); } .d100 i.h { background: var(--warn); }
+.rc { display: flex; flex-wrap: wrap; gap: 6px; }
+.rc-i { display: inline-grid; padding: 6px 10px; border-radius: 10px; background: var(--n1); font-size: 11.5px; color: var(--muted); }
+.rc-i b { font-size: 16px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.rc-i.on { background: color-mix(in srgb, var(--c-i) 16%, var(--card)); box-shadow: inset 0 0 0 1.5px var(--c-i); } .rc-i.on b { color: var(--c-i-ink); }
+.s2 { display: flex; gap: 28px; } .s2 > div { display: grid; }
+.s2 b { font-size: 32px; font-weight: 500; letter-spacing: -.035em; line-height: 1.1; font-variant-numeric: tabular-nums; color: var(--warn); } .s2 span { font-size: 12.5px; color: var(--muted); }
+.c5 { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; align-items: end; }
+.c5-c { display: grid; gap: 4px; justify-items: center; font-size: 11.5px; color: var(--muted); text-align: center; }
+.c5-c b { font-size: 13px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.c5-t { position: relative; width: 100%; height: 90px; border-radius: 8px; background: var(--rule-2); overflow: hidden; }
+.c5-t i { position: absolute; left: 0; right: 0; bottom: 0; background: var(--c-i); border-radius: 8px 8px 0 0; }
+.wf-mini { max-width: 180px; }
+.acp { display: grid; gap: 6px; max-width: 320px; } .acp-t { height: 12px; border-radius: 999px; background: var(--rule-2); overflow: hidden; }
+.acp-t i { display: block; height: 100%; border-radius: 999px; background: var(--c-o); } .acp span { font-size: 12.5px; color: var(--muted); } .acp b { color: var(--ink); }
+.two-mini { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px; border-top: 1px solid var(--rule); padding-top: 16px; }
+.two-mini > div { display: grid; gap: 10px; align-content: start; min-width: 0; }
+.two-mini h4 { margin: 0; font-size: 14.5px; font-weight: 500; }
+.qx-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; padding-right: 0; }
+.qx-all { font: inherit; font-size: 13px; border: 1px solid var(--rule); background: var(--raise); color: var(--ink); border-radius: 10px; padding: 7px 12px; cursor: pointer; min-height: 36px; }
+.qx-all:hover { background: var(--n1); }
+.qx-list { display: grid; }
+details.qx { border-top: 1px solid var(--rule-2); } details.qx:first-child { border-top: 0; }
+.qx > summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: 26px minmax(0, 1fr) auto minmax(132px, auto) 20px; grid-template-areas: "n q v k c";
+  gap: 14px; align-items: center; padding: 12px 10px; margin: 0 -10px; border-radius: 12px; }
+.qx > summary::-webkit-details-marker { display: none; }
+.qx > summary:hover { background: var(--rule-2); }
+.qx-n { grid-area: n; width: 24px; height: 24px; border-radius: 50%; background: var(--n1); display: grid; place-items: center; font-size: 12px; font-weight: 600; color: var(--ink-2); }
+.qx-q { grid-area: q; font-size: 15px; font-weight: 500; color: var(--ink); line-height: 1.35; }
+.qx-v { grid-area: v; justify-self: start; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
+.qx-v.no, .qx-v.part { background: var(--warn-bg); color: var(--warn); }
+.qx-v.yes { background: color-mix(in srgb, var(--c-o) 16%, var(--card)); color: var(--c-o-ink); }
+.qx-v.info { background: color-mix(in srgb, var(--c-i) 14%, var(--card)); color: var(--c-i-ink); }
+.qx-v.wait { background: var(--n1); color: var(--ink-2); box-shadow: inset 0 0 0 1px var(--n2); }
+.qx-k { grid-area: k; text-align: right; font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }
+.qx-c { grid-area: c; position: relative; width: 20px; height: 20px; }
+.qx-c::before { content: ""; position: absolute; left: 6px; top: 3px; width: 7px; height: 7px; border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted); transform: rotate(45deg); transition: transform .2s; }
+.qx[open] .qx-c::before { transform: translateY(5px) rotate(-135deg); }
+.qx-b { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 26px; padding: 6px 0 20px 40px; align-items: start; }
+.qx-viz { display: grid; gap: 8px; min-width: 0; }
+.qx-t { display: grid; gap: 8px; min-width: 0; font-size: 14px; color: var(--ink-2); line-height: 1.5; } .qx-t p { margin: 0; max-width: 62ch; } .qx-t a { font-size: 13px; font-weight: 500; }
+.step-v { display: grid; gap: 2px; } .step-v b { font-size: 28px; font-weight: 500; letter-spacing: -.035em; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.step-v span { display: flex; align-items: center; font-size: 13px; color: var(--ink-2); }
+a.step-p { text-decoration: none; color: var(--accent-ink); }
+details.more-d > summary { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; list-style: none; font-size: 13px; font-weight: 500; color: var(--accent-ink); }
+details.more-d > summary::-webkit-details-marker { display: none; }
+details.more-d > summary::after { content: "+"; } details.more-d[open] > summary::after { content: "−"; } details.more-d[open] > summary { margin-bottom: 10px; }
 .tried { display: grid; gap: 12px; }
 .tr { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr) 56px; gap: 16px; align-items: center; }
 .tr-l { display: grid; gap: 1px; font-size: 14px; color: var(--ink-2); } .tr-l small { font-size: 12px; color: var(--muted); }
@@ -1860,7 +2000,10 @@ table.ac td { vertical-align: middle; }
   .answers { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .eq-fbcard { grid-column: 1 / -1; }
   .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); } .step::after { display: none; }
-  .card.bluf { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 820px) {
+  .bt3, .ask3 ol, .two-mini, .qx-b { grid-template-columns: minmax(0, 1fr); }
+  .qx-b { padding-left: 0; gap: 14px; }
 }
 @media (max-width: 720px) {
   table.sct th, table.sct td { padding: 10px 6px; }
@@ -1898,9 +2041,10 @@ table.ac td { vertical-align: middle; }
   .rr { grid-template-columns: minmax(0, 128px) minmax(0, 1fr) 40px; gap: 8px; font-size: 12.5px; }
   .sg .lg { display: none; } .sg .sm { display: inline; } .sg span { padding: 0 6px; font-size: 11.5px; }
   .gloss { grid-template-columns: minmax(0, 1fr); gap: 2px; } .gloss dd { margin-bottom: 8px; }
-  .card.bluf { padding: 22px 18px 20px; gap: 16px; }
-  .bl li { grid-template-columns: 26px minmax(0, 1fr); gap: 10px; } .bl-n { width: 24px; height: 24px; font-size: 12px; }
-  .qr { grid-template-columns: minmax(0, 1fr); gap: 4px; padding: 12px 10px; margin: 0 -10px; } .qr-go { display: none; }
+  .card.bluf { padding: 22px 16px 18px; gap: 16px; }
+  .bt { padding: 16px; }
+  .qx > summary { grid-template-columns: 24px minmax(0, 1fr) auto 16px; grid-template-areas: "n q q c" ". v k ."; gap: 6px 10px; padding: 12px 8px; margin: 0 -8px; }
+  .qx-k { font-size: 15px; }
   .tr { grid-template-columns: minmax(0, 1fr) 48px; gap: 4px 12px; } .tr-l { grid-column: 1 / -1; } .tr-ax > span:first-child { display: none; }
   .brand { font-size: 22px; }
   .top-right { width: 100%; justify-content: space-between; flex-wrap: nowrap; }
@@ -1952,6 +2096,13 @@ JS = """
   });
   if (mq && mq.addEventListener) mq.addEventListener('change', sync);
   sync();
+  document.querySelectorAll('.qx-all').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var open = b.getAttribute('data-open') !== '1';
+      document.querySelectorAll('details.qx').forEach(function (d) { d.open = open; });
+      b.setAttribute('data-open', open ? '1' : '0'); b.textContent = open ? 'Close all' : 'Open all';
+    });
+  });
   var links = document.querySelectorAll('nav.pills a');
   if ('IntersectionObserver' in window) {
     var io = new IntersectionObserver(function (es) {
@@ -2027,6 +2178,8 @@ JS = """
       if (!snap.size) { sum.textContent = 'No posts in the list yet.'; return; }
       sum.append(b(done + ' of ' + snap.size), ' checked. ', b(String(both)), ' closer to Instagram + Facebook, ', b(String(igOnly)), ' closer to Instagram only.');
       document.querySelectorAll('.ac-left').forEach(function (el) { el.textContent = String(snap.size - done); });
+      document.querySelectorAll('.ac-done').forEach(function (el) { el.textContent = String(done); });
+      document.querySelectorAll('.ac-prog').forEach(function (el) { el.style.width = (snap.size ? 100 * done / snap.size : 0) + '%'; });
     }, function () { sum.textContent = 'The check list could not load in this view.'; });
   });
 })();
