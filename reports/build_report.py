@@ -357,7 +357,7 @@ def overview(D):
     a = card("Subtracting paid breaks down as paid grows",
              hero_columns(R)
              + '<div class="ask"><div class="ask-q"><span class="spark" aria-hidden="true">✦</span>What would make the numbers better?</div>'
-               '<div class="ask-a">Tag every boosted ad with its post ID, wait 7–14 days before a boost, and run one '
+               '<div class="ask-a">Tag every boosted ad with its post ID or URL, boost on day 3 or later (best: days 7 to 14), and run one '
                '<span class="chip" tabindex="0" data-tip="Run the ad as a separate dark post, not as a boost of the creator\'s own post. '
                'The creator\'s post then shows organic views only, which gives TikTok an organic number to check against.">TikTok dark-post test</span> '
                'to check TikTok organic.</div></div>',
@@ -498,7 +498,7 @@ def reach100(a, b):
     """how close the parts come to the total: solid to a, light to b, a line at 100%"""
     return (f'<div class="r100" role="img" aria-label="Parts add up to {pct(a)} of the total, {pct(b)} with the Facebook correction."><i class="r100-a" style="width:{100 * a:.1f}%"></i>'
             f'<i class="r100-b" style="left:{100 * a:.1f}%;width:{100 * max(b - a, 0):.1f}%"></i><i class="r100-one"></i></div>'
-            f'<div class="r100-l"><span>{pct(a)} parts</span><span>+ Facebook correction = {pct(b)}</span><span>100% total</span></div>')
+            f'<div class="r100-l"><span><i class="k-a"></i>{pct(a)} organic + paid</span><span><i class="k-b"></i>{pct(b)} with the Facebook correction</span><span>100% = total seen</span></div>')
 
 
 def dots100(hit, lab):
@@ -567,88 +567,105 @@ def start(D):
     conf = R["production_function_by_confidence"]
     pl = E["placements"]["rows"]
     ptot = sum(r["impressions"] for r in pl)
-    tiles = [("w", "Total − a paid metric = organic?", "No, not for one post.", f'{pct(sub_["median_abs_error"])} off',
-              f'for a typical post. Organic goes below zero on {pct(sub_["negative_organic"])} of posts.',
-              post100(ps, gap) + f'<p class="bt-cap">A typical boosted post: {round(100 * ps)} of 100 views are paid. The paid count misses by about {round(100 * gap)} (hatched), which is most of organic.</p>',
-              f'Best paid metric (impressions), {sub_["posts"]} boosted Instagram posts, checked against creator data (opt-in). One read per post, 2 or more days after the last ad day.'),
-             ("o", "A repeatable way to find organic?", "Yes: the views just before the boost.", f'{pct(curve["median_abs_error"], 1)} off',
+    pe = lambda v: pct(v, 1) if v < .2 else pct(v)          # 11.5% stays 11.5%; large errors round to whole percents
+    tiles = [("w", "Can we subtract paid views from the total?", "No, not for one post.", f'{pct(sub_["median_abs_error"])} error',
+              f'for a typical post. Organic comes out below zero on {pct(sub_["negative_organic"])} of posts.',
+              post100(ps, gap) + f'<p class="bt-cap">In a typical boosted post, {round(100 * ps)} of 100 views are paid. A typical miss on the paid count is about '
+              f'{round(100 * gap)} views (hatched), almost all of the {round(100 * (1 - ps))} organic views.</p>',
+              f'Best paid metric (paid impressions), {sub_["posts"]} boosted Instagram posts. Truth = the creator\'s own organic count (opt-in). '
+              f'One read per post, 2 or more days after the last ad day.'),
+             ("o", "Is there a repeatable way to find organic?", "Yes: use the views just before the boost.", f'{pct(curve["median_abs_error"], 1)} error',
               "for a typical post. Never below zero.",
-              mbars([("Total − paid impressions", sub_["median_abs_error"], "w"), ("Views before the boost × normal growth", curve["median_abs_error"], "o")], top=1,
-                    fmt=lambda v: pct(v, 1) if v < .2 else pct(v)),
-              f'Take the last view count before the boost and grow it at the normal organic rate. {curve["posts"]} boosted Instagram posts, checked against creator data; '
-              f'{pct(curve["within_25pct"])} are within 25%.'),
-             ("i", "Organic + boosted = total seen?", "Yes, once Facebook is counted.", pct(eqf["median"]),
-              f'of the total for a typical post, with a small Facebook correction ({pct(best["median"])} without).',
-              reach100(best["median"], eqf["median"]) + f'<p class="bt-cap"><span class="pill warn">{best["posts"]} posts</span> In-app check: '
-              f'<b class="ac-left">{best["posts"]}</b> of {best["posts"]} still to do.</p>',
-              f'Organic (creator data) + paid Instagram impressions + paid Facebook plays, against the SocAPI total (Instagram + Facebook). '
+              mbars([("Subtract paid from the total", sub_["median_abs_error"], "w"), ("Views before the boost, grown", curve["median_abs_error"], "o")], top=1, fmt=pe)
+              + '<p class="bt-cap">Typical error. Shorter bar = closer to the truth.</p>',
+              f'Take the last view count before the boost and grow it at the normal organic rate. {curve["posts"]} boosted Instagram posts, checked against the creator\'s '
+              f'own organic count; {pct(curve["within_25pct"])} are within 25%.'),
+             ("i", "Does organic + boosted = the total seen?", "Yes, once Facebook is counted.", pct(eqf["median"]),
+              f'of the total seen for a typical post ({pct(best["median"])} before a small Facebook correction).',
+              reach100(best["median"], eqf["median"]) + f'<p class="bt-cap"><span class="pill warn">Only {best["posts"]} posts</span> '
+              f'<b class="ac-done">0</b> of {best["posts"]} checked in the Instagram app.</p>',
+              f'Organic (creator data) + paid Instagram impressions + paid Facebook plays, against the total seen on Instagram + Facebook (SocAPI). '
               f'Correction: paid Facebook plays × {k:.1f}, fitted on the other posts each time.')]
     tile = lambda i, t: (f'<div class="bt {t[0]}"><span class="bt-k">{esc(t[1])}{info(t[6])}</span><b class="bt-a">{esc(t[2])}</b>'
                          f'<div class="bt-num"><b class="bt-v">{t[3]}</b><span>{esc(t[4])}</span></div>{t[5]}</div>')
     asks = [("Tag every boosted ad with the post ID or URL.", "Gives the exact start date and the paid numbers for each post."),
-            ("Boost on day 3 or later, best day 7–14. Or use a dark post.", "A boost in the first days leaves no organic-only views to grow forward."),
+            ("Boost on day 3 or later (best: days 7 to 14), or use a dark post.", "A boost in the first days leaves no organic-only views to grow forward."),
             ("Run one TikTok post as a dark post.", "TikTok creator data also counts Spark Ad views, so today we cannot check TikTok organic.")]
     bottom = ('<article class="card span3 bluf"><span class="kicker">Bottom line</span><div class="bt3">'
               + "".join(tile(i, t) for i, t in enumerate(tiles)) + '</div>'
               + '<div class="ask3"><span class="bl-ak">The math works when Paid Media does this</span><ol>'
               + "".join(f'<li><span class="a3-n">{i}</span><span>{tipped(t, why)}</span></li>' for i, (t, why) in enumerate(asks, 1)) + '</ol></div>'
-              + f'<p class="bl-cav"><span class="pill warn">What could change this</span><span>The Facebook sum rests on {best["posts"]} posts, and no one has checked the totals in the app yet.</span></p></article>')
+              + f'<p class="bl-cav"><span class="pill warn">What could change this</span><span>The Facebook part rests on {best["posts"]} posts, and no one has checked '
+                'the totals in the Instagram app yet.</span></p></article>')
 
     # every question: the short answer and one number in the row; open it for a small chart and the proof
     n_early = early(ig) + early(tt)
-    qs = [("Does total − a paid metric = organic?", "No", "no", f'{pct(sub_["median_abs_error"])} off', post100(ps, gap),
-           f'Best paid metric (impressions): {pct(sub_["median_abs_error"])} off for a typical post. Organic goes below zero on {pct(sub_["negative_organic"])} of posts '
-           f'({sub_["posts"]} Instagram posts). Paid is {pct(ps)} of a boosted post\'s views, so a small paid miss is most of organic.', "#overview"),
-          ("Which paid metric matches the views?", "Impressions · plays", "info", f'{times(mm_ig["Impressions"]["median"])} · {times(mm_fb["Video plays (starts)"]["median"])}',
+    neg = tg["public - paid IG impressions"]["negative_organic"]
+    gap_ig, gap_fb = mm_ig["Impressions"]["median"] - 1, mm_fb["Video plays (starts)"]["median"] - 1
+    qs = [("", "Can we subtract paid views from the total to get organic?", "No", "v-no", f'{pct(sub_["median_abs_error"])} error', post100(ps, gap),
+           f'We subtracted each paid metric from the public total and compared the result with the creator\'s own organic count. The best metric (paid impressions) has a '
+           f'{pct(sub_["median_abs_error"])} error for a typical post, and organic comes out below zero on {pct(sub_["negative_organic"])} of posts ({sub_["posts"]} boosted Instagram posts). '
+           f'The reason: paid is {pct(ps)} of a boosted post\'s views, so a small miss on paid is most of organic.', "#overview"),
+          ("", "Which paid number matches the extra views?", "Impressions, plays", "v-inf", f'{pct(gap_ig)}–{pct(gap_fb)} gap',
            ratio_chips([("Impressions", mm_ig["Impressions"]["median"], True), ("Video plays", mm_ig["Video plays (starts)"]["median"], False),
                         ("3-second views", mm_ig["3-second video views"]["median"], False), ("25% watched", mm_ig["25% watched"]["median"], False),
                         ("ThruPlays", mm_ig["ThruPlays"]["median"], False), ("100% watched", mm_ig["100% watched"]["median"], False)]),
-           f'Instagram: extra views = {times(mm_ig["Impressions"]["median"])} paid impressions ({mm_ig["Impressions"]["n"]} posts). Facebook: '
-           f'{times(mm_fb["Video plays (starts)"]["median"])} paid video plays ({best["posts"]} posts). The other view types are {min(view_types):.0f} to {max(view_types):.0f} times too small.', "#eq-types"),
-          ("We started with the post-ID tagged posts. What do they show?", "Same: it fails", "no", f'{pct(tg["public - paid IG impressions"]["negative_organic"])} below zero',
-           dots100(round(100 * tg["public - paid IG impressions"]["negative_organic"]), "days with negative organic"),
-           f'{tg["posts"]} tagged Instagram posts have daily creator data. On {round(tg["post_days"] * tg["public - paid IG impressions"]["negative_organic"])} of '
-           f'{tg["post_days"]} days while the ads ran, total − paid impressions gave negative organic. That is too few posts alone, so we added '
-           f'{R["panel"]["posts"] - tg["posts"]} boosted posts matched by the post key in the ad name ({R["panel"]["posts"]} in total, reads from {day(R["panel"]["obs_from"], True)}).', "#faq"),
-          ("Is there a repeatable way to find organic?", "Yes", "yes", f'{pct(curve["median_abs_error"], 1)} off',
+           f'On Instagram, the extra views are {times(mm_ig["Impressions"]["median"])} the paid impressions ({mm_ig["Impressions"]["n"]} posts). On Facebook, they are '
+           f'{times(mm_fb["Video plays (starts)"]["median"])} the paid video plays ({best["posts"]} posts). 1× would be an exact match. The other view types are '
+           f'{min(view_types):.0f} to {max(view_types):.0f} times too small.', "#eq-types"),
+          ("", "What do the posts tagged with a post ID show?", "Organic goes negative", "v-no", f'{pct(neg)} of days',
+           dots100(round(100 * neg), "days with negative organic"),
+           f'{tg["posts"]} Instagram posts carry a post-ID tag and have daily creator data. On {round(tg["post_days"] * neg)} of {tg["post_days"]} days while the ads ran, '
+           f'subtracting paid impressions gave negative organic. {tg["posts"]} posts are too few, so we added {R["panel"]["posts"] - tg["posts"]} boosted posts matched by the post key '
+           f'in the ad name ({R["panel"]["posts"]} in total, reads from {day(R["panel"]["obs_from"], True)}).', "#faq"),
+          ("", "Is there a repeatable way to find organic?", "Yes", "v-yes", f'{pct(curve["median_abs_error"], 1)} error',
            mbars([("Read on day 14+", conf["high"]["median_abs_error"], "o"), ("Read on day 7–13", conf["medium"]["median_abs_error"], "o"),
-                  ("Read before day 7", conf["low"]["median_abs_error"], "w")], top=.5, fmt=lambda v: pct(v, 1)),
-           f'The last view count before the boost, grown at the normal organic rate: {pct(curve["median_abs_error"], 1)} off for a typical post, '
-           f'{pct(curve["within_25pct"])} within 25%, never below zero ({curve["posts"]} posts). The later the read, the better.'
-           + (f' With no ad date, the start comes from the jump in daily views: {pct(bs["median_abs_error"], 1)} off ({bs["posts"]} posts).' if bs else ""), "#findings"),
-          ("Do we still need dark posts?", "Before day 3", "part", f'{n_early:,} posts',
+                  ("Read before day 7", conf["low"]["median_abs_error"], "w")], top=.5, fmt=lambda v: pct(v, 1))
+           + '<p class="bt-cap">Typical error by the day of the last read before the boost.</p>',
+           f'Take the last view count before the boost and grow it at the normal organic rate. Typical error {pct(curve["median_abs_error"], 1)}; '
+           f'{pct(curve["within_25pct"])} of posts are within 25%, and none go below zero ({curve["posts"]} posts). A later read is better.'
+           + (f' With no ad date, we find the start from the jump in daily views: {pct(bs["median_abs_error"], 1)} error ({bs["posts"]} posts).' if bs else ""), "#findings"),
+          ("", "Do we still need dark posts?", "Yes, for early boosts", "v-part", f'{n_early:,} posts',
            stat2([(f"{early(ig):,}", "Instagram"), (f"{early(tt):,}", "TikTok")]),
-           "These boosted posts were boosted before day 3 or before our first read, so there are no organic-only views to grow. "
-           + (f'Every other signal we tried is {min(cr_err):.0%}–100% off.' if cr_err else ""), "#tried"),
-          ("For posts VN boosted: organic + boosted = total seen?", "Yes, with Facebook", "yes", f'{pct(best["median"])} → {pct(eqf["median"])}',
+           f'These {n_early:,} posts were boosted before day 3 or before our first read, so they have no organic-only views to grow. '
+           + (f'Every other signal we tried has a {min(cr_err):.0%}–100% error. ' if cr_err else "")
+           + 'A dark post keeps the creator\'s post organic only.', "#tried"),
+          ("", "For posts VN boosted, does organic + boosted = the total seen?", "Yes, with Facebook", "v-yes", f'{pct(eqf["median"])} of total',
            reach100(best["median"], eqf["median"]),
-           f'Organic + paid Instagram impressions + paid Facebook plays = {pct(best["median"])} of the SocAPI total for a typical post; all {best["posts"]} posts are within 25%. '
-           f'With paid Facebook plays × {k:.1f}: {pct(eqf["median"])}, and {round(eqf["within_10pct"] * eqf["posts"])} of {eqf["posts"]} posts are within 10%.', "#equation"),
-          ("Callout 1: how much of the total is Facebook?", "Most of it", "info", pct(so["facebook_share_of_total_median"]),
-           split2(1 - so["facebook_share_of_total_median"], "Instagram (Nimble)", "Facebook"),
-           f'Nimble shows only the Instagram part. SocAPI\'s Instagram plays equal Nimble ({so["instagram_plays_over_nimble_median"]:.2f}×); '
-           f'the full total is {so["total_over_nimble_median"]:.2f}× Nimble for a typical post ({so["posts"]} posts).', "#eq-fb"),
-          ("Callout 2: do other placements matter?", "No", "yes", f'{pct(other, 2)}',
-           f'<div class="wf-mini">{waffle(pl)}</div>',
-           f'Audience Network, Messenger and unknown placements get {pct(other, 2)} of paid impressions. Facebook gets {pct(pl[0]["impressions"] / ptot, 1)}, '
-           f'Instagram {pct(pl[1]["impressions"] / ptot, 1)} ({ptot:,} paid impressions on ads linked to Instagram campaign posts).', "#eq-types"),
-          ("Callout 3: is our total the total in the app?", "Not checked yet", "wait", f'<span class="ac-left">{best["posts"]}</span> left',
-           f'<div class="acp"><div class="acp-t"><i class="ac-prog" style="width:0%"></i></div><span><b class="ac-done">0</b> of {best["posts"]} checked</span></div>',
-           f'Nimble counts Instagram only. Open each of the {best["posts"]} posts in the app and type the view count you see. The list is shared, and the page says which total each count is closer to.', "#appcheck"),
-          ("The simple rule (ER < 1%, views > followers) vs the model?", "Model finds more", "info", f'{pct(rule["recall"])} → {pct(im["recall"])}',
-           mbars([("Rule: boosts found", rule["recall"], "n"), ("Model: boosts found", im["recall"], "i"),
-                  ("Rule: flags right", rule["precision"], "n"), ("Model: flags right", im["precision"], "i")], top=1),
-           f'Instagram test posts, {im["tp"] + im["fn"]} boosted. The rule flags {pct(rule["fpr"])} of unboosted posts. TikTok: the rule finds '
-           f'{pct(P["Tiktok"]["rules_test"][HAND_RULE]["recall"])}, the model {pct(tm["recall"])}. Posts VN boosted have ad records, so the equation needs neither.', "#need")]
-    rows_q = "".join(f'<details class="qx"><summary><span class="qx-n">{i}</span><span class="qx-q">{esc(q)}</span><span class="qx-v {vc}">{esc(v)}</span>'
-                     f'<b class="qx-k">{key}</b><span class="qx-c" aria-hidden="true"></span></summary>'
-                     f'<div class="qx-b"><div class="qx-viz">{viz}</div><div class="qx-t"><p>{txt}</p><a href="{h}">See the proof →</a></div></div></details>'
-                     for i, (q, v, vc, key, viz, txt, h) in enumerate(qs, 1))
+           f'Organic + paid Instagram impressions + paid Facebook plays = {pct(best["median"])} of the total seen for a typical post (SocAPI, Instagram + Facebook). '
+           f'With paid Facebook plays × {k:.1f}, it is {pct(eqf["median"])}, and {round(eqf["within_10pct"] * eqf["posts"])} of {eqf["posts"]} posts are within 10%. '
+           f'Only {best["posts"]} posts have this data so far.', "#equation"),
+          ("Callout 1", "How much of the total seen is Facebook?", "Most of it", "v-inf", pct(so["facebook_share_of_total_median"]),
+           split2(1 - so["facebook_share_of_total_median"], "Instagram (what Nimble shows)", "Facebook"),
+           f'Our public views (Nimble) show the Instagram part only. SocAPI\'s Instagram count equals Nimble ({so["instagram_plays_over_nimble_median"]:.2f}×), and its full total is '
+           f'{so["total_over_nimble_median"]:.2f}× Nimble for a typical post ({so["posts"]} posts). So most of what people see is on Facebook.', "#eq-fb"),
+          ("Callout 2", "Do placements other than Facebook and Instagram matter?", "No", "v-yes", f'{pct(other, 2)} of ads',
+           f'<div class="wf-mini">{waffle(pl)}</div>' + legend([("wf-f", "Facebook"), ("wf-i", "Instagram")]) + '<p class="bt-cap">1 square = 1% of paid impressions.</p>',
+           f'Audience Network, Messenger and unknown placements get {pct(other, 2)} of paid impressions. Facebook gets {pct(pl[0]["impressions"] / ptot, 1)} and '
+           f'Instagram {pct(pl[1]["impressions"] / ptot, 1)} ({millions(ptot)} paid impressions on ads linked to Instagram campaign posts).', "#eq-types"),
+          ("Callout 3", "Does our total match the total in the Instagram app?", "Not checked yet", "v-wait",
+           f'<span class="ac-done">0</span> of {best["posts"]} done',
+           f'<div class="acp"><div class="acp-t"><i class="ac-prog" style="width:0%"></i></div><span><b class="ac-done">0</b> of {best["posts"]} posts checked</span></div>',
+           f'Nimble shows the Instagram part only, and the app may show more. Open each of the {best["posts"]} posts in the Instagram app and type the view count you see. '
+           'Everyone with this page sees the same list.', "#appcheck"),
+          ("", "Which finds more boosts: the simple rule or the model?", "The model", "v-inf", f'{pct(im["recall"])} vs {pct(rule["recall"])}',
+           mbars([("Boosts found: rule", rule["recall"], "n"), ("Boosts found: model", im["recall"], "i"),
+                  ("Flags that are right: rule", rule["precision"], "n"), ("Flags that are right: model", im["precision"], "i")], top=1),
+           f'Simple rule: flag a post when its views are above its followers and its engagement is under 1% of views. Instagram test ({im["tp"] + im["fn"]} boosted posts): '
+           f'the rule finds {pct(rule["recall"])} of boosts and the model {pct(im["recall"])}. TikTok: rule {pct(P["Tiktok"]["rules_test"][HAND_RULE]["recall"])}, '
+           f'model {pct(tm["recall"])}. Posts VN boosted have ad records, so the equation needs neither.', "#need")]
+    rows_q = "".join(f'<details class="qx"><summary><span class="qx-n">{i}</span><span class="qx-q">{f"<small>{esc(tag)}</small>" if tag else ""}{esc(q)}</span>'
+                     f'<span class="qx-v {vc}">{esc(v)}</span><b class="qx-k">{key}</b><span class="qx-c" aria-hidden="true"></span></summary>'
+                     f'<div class="qx-b"><div class="qx-viz">{viz}</div><div class="qx-t"><p>{txt}</p><a href="{h}">See the full proof →</a></div></div></details>'
+                     for i, (tag, q, v, vc, key, viz, txt, h) in enumerate(qs, 1))
+    key_ = ('<div class="qx-key"><span class="qx-v v-yes">Good news</span><span class="qx-v v-no">Problem</span>'
+            '<span class="qx-v v-inf">Fact</span><span class="qx-v v-wait">Not done yet</span></div>')
     answers = ('<article class="card span3" id="questions"><div class="card-head qx-head"><div><h3>Paid Media\'s questions, answered</h3>'
-               '<p class="card-sub">Short answer and one number per row. Open a row for its chart and proof.</p></div>'
-               '<button type="button" class="qx-all" data-open="0">Open all</button></div><div class="qx-list">' + rows_q + '</div>'
-               f'<p class="proof"><b>Basis.</b> Organic truth = creator account data (opt-in), Instagram only. Typical = the median post. '
-               f'Post-ID tags so far: {tags.get("Instagram", 0) + tags.get("Tiktok", 0)} posts; ads matched by the post key in the ad name: '
+               '<p class="card-sub">Each row gives the short answer and the key number. Open a row for its chart and proof.</p></div>'
+               '<button type="button" class="qx-all" data-open="0">Open all</button></div>' + key_ + '<div class="qx-list">' + rows_q + '</div>'
+               f'<p class="proof"><b>Basis.</b> Truth = the creator\'s own organic count (opt-in), Instagram only. Typical = the median post. Error = how far an estimate is from the truth. '
+               'Nimble = our public view count (Instagram part only). SocAPI = play counts for Instagram + Facebook together. '
+               f'Post-ID tags so far: {tags.get("Instagram", 0) + tags.get("Tiktok", 0)} posts. Ads matched by the post key in the ad name: '
                f'{links.get("Instagram", 0):,} Instagram and {links.get("Tiktok", 0):,} TikTok posts.</p></article>')
 
     def step(n, q, big, small, tip, proof, href):
@@ -659,13 +676,13 @@ def start(D):
                     f'Ad records: {ig["boosted_by_record"]:,} Instagram and {tt["boosted_by_record"]:,} TikTok posts. With no record, the model reads the view pattern: '
                     f'{ig["boosted_by_model"]:,} more on Instagram and {tt["boosted_by_model"]:,} more on TikTok.',
                     f'{round(100 * im["precision"])} in 100 model flags are right.', "#model")
-             + step(2, f"How many views are {term('o', 'organic')}?", f'{pct(curve["median_abs_error"], 1)} off', "views before the boost × normal growth",
+             + step(2, f"How many views are {term('o', 'organic')}?", f'{pct(curve["median_abs_error"], 1)} error', "views before the boost, grown at the normal rate",
                     'Creator account data when we have it. If not, the views just before the boost, grown at the normal rate. With no start date, the start comes from the jump in daily views.',
                     f'{curve["posts"]} posts vs creator data.', "#gaps")
-             + step(3, f"How many are {term('i', 'paid')}?", f'{pct(pd_["public_minus_organic_estimate"]["median_abs_error"], 1)} off', "total − the organic estimate",
-                    f'Paid is most of the views, so a small organic miss is a tiny paid miss. Paid ad impressions alone: {pct(pd_["paid_instagram_impressions"]["median_abs_error"])} off.',
+             + step(3, f"How many are {term('i', 'paid')}?", f'{pct(pd_["public_minus_organic_estimate"]["median_abs_error"], 1)} error', "total − the organic estimate",
+                    f'Paid is most of the views, so a small organic miss is a tiny paid miss. Paid ad impressions alone: {pct(pd_["paid_instagram_impressions"]["median_abs_error"])} error.',
                     f'{pd_["public_minus_organic_estimate"]["posts"]} posts vs creator data.', "#findings")
-             + step(4, "What was the total seen?", f'{pct(fb["total_from_nimble_plus_k_fb_plays"]["median_abs_error"], 1)} off', f"Nimble + {k:.1f} × paid Facebook plays",
+             + step(4, "What was the total seen?", f'{pct(fb["total_from_nimble_plus_k_fb_plays"]["median_abs_error"], 1)} error', f"Nimble + {k:.1f} × paid Facebook plays",
                     'Nimble shows the Instagram part only. The Facebook part is about 1.1 × the paid Facebook plays.',
                     f'Only {fb["total_from_nimble_plus_k_fb_plays"]["posts"]} posts so far.', "#equation")
              + '</div>')
@@ -704,7 +721,7 @@ def start(D):
     nj = MR.get("no_clear_jump_instagram_optin")
     gaps = [(f"{early(ig):,} Instagram and {early(tt):,} TikTok posts boosted before day 3",
              "Boosted before day 3 or before our first read. No organic-only views exist before the boost, so there is nothing to grow forward."
-             + (f" Every other signal we tried is {min(cr_err):.0%}–100% off." if cr_err else ""),
+             + (f" Every other signal we tried has a {min(cr_err):.0%}–100% error." if cr_err else ""),
              "Boost on day 3 or later, or use a dark post.", "Paid Media"),
             (f"{ig[mr]['no_clear_jump']:,} Instagram and {tt[mr]['no_clear_jump']:,} TikTok posts with no clear jump",
              "The daily views never jump, so we cannot see when the boost started."
@@ -737,7 +754,7 @@ def start(D):
                      f'<div class="tr-track"><i class="tr-fill grow" style="width:{100 * min(e["median_abs_error"], 1):.1f}%;--d:{.08 * i:.2f}s"></i></div>'
                      f'<b>{pct(e["median_abs_error"], 1) if e["median_abs_error"] < .2 else pct(e["median_abs_error"])}</b></div>'
                      for i, (n_, e, on, why) in enumerate(rows_))
-        tr += '<div class="tr tr-ax"><span></span><div class="rr-ticks"><span style="left:0%">0%</span><span style="left:25%">25%</span><span style="left:50%">50%</span><span style="left:100%">100% off</span></div><b></b></div>'
+        tr += '<div class="tr tr-ax"><span></span><div class="rr-ticks"><span style="left:0%">0%</span><span style="left:25%">25%</span><span style="left:50%">50%</span><span style="left:100%">100% error</span></div><b></b></div>'
         g = lambda p, ph: su[p][ph]["share_up_25pct"]
         speed = mbars([("Instagram, first week of ads", g("Instagram", "first 7 days of ads"), "i"), ("Instagram, unboosted", g("Instagram", "organic posts"), "n"),
                        ("TikTok, first week of ads", g("Tiktok", "first 7 days of ads"), "i"), ("TikTok, unboosted", g("Tiktok", "organic posts"), "n")], top=.5)
@@ -745,7 +762,7 @@ def start(D):
                       ("+2 days", aa["2 days after"]["paid_share_of_daily_gain_median"]), ("+3 days", aa["3 days after"]["paid_share_of_daily_gain_median"]),
                       ("Days 4–30", aa["4-30 days after"]["paid_share_of_daily_gain_median"])])
         tried = claim_card("Can we predict the posts we still miss?",
-                           f"Only from the views before the boost. Every other signal we tried is {min(cr_err):.0%}–100% off for a typical post.",
+                           f"Only from the views before the boost. Every other signal we tried has a {min(cr_err):.0%}–100% error for a typical post.",
                            f'<div class="tried" role="img" aria-label="Typical organic error by method">{tr}</div>'
                            + legend([("tr-k on", "In use"), ("tr-k", "Tested, not used")])
                            + f'<div class="two-mini"><div><h4>Does a boost show as faster growth?</h4>{speed}'
@@ -878,8 +895,8 @@ def equation(D):
                      f'<i class="sg o grow" style="width:{100 * org:.1f}%;--d:.3s"></i>'
                      f'<i class="lim-err" style="left:{100 * (ps - gap):.1f}%;width:{100 * 2 * gap:.1f}%"></i></div>'
                      f'<div class="lim-lab"><span>A typical boosted post: 100 views</span><span class="lim-o">{round(100 * org)} {term("o", "organic")}</span></div>'
-                     f'<p class="claim-note">The paid count is typically about {round(100 * gap)} views in 100 off (hatched). That miss is almost as big as the whole {o} part. '
-                     f'So {o} = total − paid is {pct(sub_["median_abs_error"])} off for a typical post, and {pct(sub_["negative_organic"])} of posts go below zero. '
+                     f'<p class="claim-note">The paid count typically misses by about {round(100 * gap)} of 100 views (hatched). That miss is almost as big as the whole {o} part. '
+                     f'So {o} = total − paid has a {pct(sub_["median_abs_error"])} error for a typical post, and {pct(sub_["negative_organic"])} of posts go below zero. '
                      f'For one post, use the pre-boost method in Findings.</p></div>',
                      f"{sub_['posts']} boosted Instagram posts, checked against creator organic. Paid share = typical post. Typical miss = the median gap between "
                      f"organic + paid impressions and Nimble ({pct(gap, 1)}). TikTok cannot be tested: its creator data counts Spark Ad views.",
@@ -928,8 +945,8 @@ def findings(D):
                      + (" Labels corrected for frozen opt-in." if run in ("v21", "v22") else ""))
     lis = "".join(f'<li><span class="n">{i + 1}</span><span>{tipped(t, tip)}</span></li>' for i, (t, tip) in enumerate(items))
     CV, M_ = (D.get("PM") or {}).get("coverage"), "missing_by_reason"
-    nxt = [("Tag every boosted ad with the post ID.", "The tag gives an exact match on every platform."),
-           ("Wait 7–14 days after publish before a boost.",
+    nxt = [("Tag every boosted ad with the post ID or URL.", "The tag gives an exact match on every platform."),
+           ("Boost on day 3 or later (best: days 7 to 14).",
             f"Instagram, checked against opt-in: a pre-boost read on day 14+ gives {pct(R['production_function_by_confidence']['high']['median_abs_error'], 1)} typical error; "
             f"before day 7, {pct(R['production_function_by_confidence']['low']['median_abs_error'])}."),
            ("If a boost starts before day 3, use a dark post or get the creator to opt in.",
@@ -1274,7 +1291,7 @@ def model(D):
         best = max(llm, key=lambda r: float(r["f1"]))
         same = f"the same {t['n']:,} test posts"
         a = progress([(f"This model ({vname})", t["f1"], "solid", f"{lab}: model {vname}, F1 {f3(t['f1'])} on {same} ({t['n_pos']} paid)."),
-                      ("Hand rule: views > followers and engagement < 1%", rr[HAND_RULE]["f1"], "hatch-n",
+                      ("Simple rule: views > followers and engagement < 1%", rr[HAND_RULE]["f1"], "hatch-n",
                        f"{lab}: F1 {f3(rr[HAND_RULE]['f1'])} on {same}."),
                       ("Views > followers", rr["views > followers"]["f1"], "hatch-n", f"{lab}: F1 {f3(rr['views > followers']['f1'])} on {same}.")], fmt=f3)
         n = int(ml["n"])
@@ -1932,6 +1949,8 @@ table.ac td { vertical-align: middle; }
 .r100 { position: relative; height: 16px; border-radius: 999px; background: var(--rule-2); margin-top: 6px; }
 .r100-a { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 999px 0 0 999px; background: var(--c-i); }
 .r100-b { position: absolute; top: 0; bottom: 0; background: var(--c-f); opacity: .55; }
+.r100-l i { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.r100-l .k-a { background: var(--c-i); } .r100-l .k-b { background: var(--c-f); opacity: .55; }
 .r100-one { position: absolute; right: 0; top: -5px; bottom: -5px; border-left: 2px dashed var(--ink); opacity: .55; }
 .d100 { display: grid; grid-template-columns: repeat(20, minmax(0, 1fr)); gap: 3px; max-width: 280px; }
 .d100 i { aspect-ratio: 1; border-radius: 2px; background: var(--n2); } .d100 i.h { background: var(--warn); }
@@ -1964,10 +1983,12 @@ details.qx { border-top: 1px solid var(--rule-2); } details.qx:first-child { bor
 .qx-n { grid-area: n; width: 24px; height: 24px; border-radius: 50%; background: var(--n1); display: grid; place-items: center; font-size: 12px; font-weight: 600; color: var(--ink-2); }
 .qx-q { grid-area: q; font-size: 15px; font-weight: 500; color: var(--ink); line-height: 1.35; }
 .qx-v { grid-area: v; justify-self: start; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
-.qx-v.no, .qx-v.part { background: var(--warn-bg); color: var(--warn); }
-.qx-v.yes { background: color-mix(in srgb, var(--c-o) 16%, var(--card)); color: var(--c-o-ink); }
-.qx-v.info { background: color-mix(in srgb, var(--c-i) 14%, var(--card)); color: var(--c-i-ink); }
-.qx-v.wait { background: var(--n1); color: var(--ink-2); box-shadow: inset 0 0 0 1px var(--n2); }
+.qx-v.v-no, .qx-v.v-part { background: var(--warn-bg); color: var(--warn); }
+.qx-v.v-yes { background: color-mix(in srgb, var(--c-o) 16%, var(--card)); color: var(--c-o-ink); }
+.qx-v.v-inf { background: color-mix(in srgb, var(--c-i) 14%, var(--card)); color: var(--c-i-ink); }
+.qx-v.v-wait { background: var(--n1); color: var(--ink-2); box-shadow: inset 0 0 0 1px var(--n2); }
+.qx-q small { display: block; font-size: 11.5px; font-weight: 600; letter-spacing: .02em; color: var(--muted); margin-bottom: 1px; }
+.qx-key { display: flex; flex-wrap: wrap; gap: 6px; } .qx-key .qx-v { font-size: 11.5px; padding: 2px 9px; }
 .qx-k { grid-area: k; text-align: right; font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }
 .qx-c { grid-area: c; position: relative; width: 20px; height: 20px; }
 .qx-c::before { content: ""; position: absolute; left: 6px; top: 3px; width: 7px; height: 7px; border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted); transform: rotate(45deg); transition: transform .2s; }
