@@ -69,6 +69,24 @@ each horizon (an independent audit found the earlier follower count looked past 
 | C6 Tagged paid posts with the boost inside the window are flagged | 1 of 1: **met** | 8 of 8: **met** (10 of 10 model scores, days 14 and 30) |
 
 Coverage (C4): 99.8% of posts at least 14 days old with a public read by day 7 get a score (target 85%).
+
+**Fresh-2, day 14 (scored 2026-10-22, plan amendment 6).** Posts published 2026-09-25 to 2026-10-09, never used before:
+188 Instagram (27 paid) and 191 TikTok (10 paid), day-14 model, scored once. `results/fresh2_eval.json`.
+
+| Day-14 model on fresh-2 | TikTok | Instagram |
+|---|---|---|
+| Large boosts caught (goal 90%) | v2.2 100% (10 of 10) | v2.2 65% (95% interval 47-84%) |
+| Flags that are really paid (goal 90%) | v2.2 71% (10 of 14; interval 45-92%) | v2.2 90% (18 of 20) |
+| F1 | v2.2 0.833, v2.3 0.800 | 0.766 for both |
+| Tagged paid posts flagged (C6) | no tagged posts yet (passes by default) | 2 of 8 |
+
+- Both versions pass 2 goals (TikTok C3 and C6), so the tie rule keeps **v2.2**. The Instagram v2.3 day-14 model is the
+  same configuration as v2.2 and gives identical scores; on TikTok v2.3 adds one false flag. C4 needs day-30 scores.
+- What the day-14 model misses on Instagram: boosts that start at publish. Of the 8 post-ID-tagged boosts, the 6 that
+  started on day 0-8 were missed, including 4 that started on day 0-3 where opt-in shows 94-99% of views are paid. With
+  no views before the boost, there is no jump to see. This matches the known limit of day-14 Instagram calls (C4, above).
+- These are day-14 scores on small samples (10 TikTok and 27 Instagram paid posts), so the ranges are wide. The day-30
+  check on the same posts runs from about 2026-11-06 and decides the version.
 C1 and C2 sit within half a point of their lines on both platforms; that is inside the noise of one test set. A
 month-by-month check inside the training period (`results/month_folds.json`; train on earlier posts, score the next
 month, Mar-Jun 2026) shows how large that noise is: TikTok day-30 F1 0.90-0.97, Instagram day-30 0.75-0.90, Instagram
@@ -112,7 +130,8 @@ feature tried on train moved day-30 Instagram past about 87% (`results/ig_miss_a
   calibration, the frozen opt-in label rule) was chosen on train cross-validation and logged in the plan before it was
   applied to held-out posts. The locked
   test was used once for v1, once for v2, once after the label fix and once after the leak repair (fourth look); the
-  fresh posts three times. The next clean test is posts published after 2026-09-24.
+  fresh posts three times. The clean test since then is fresh-2 (posts published after 2026-09-24): day 14 scored once on
+  2026-10-22 (above), day 30 from about 2026-11-06.
 - **Locked test by time** (train before 2026-07-01). Model family (13 candidates) and threshold chosen on train only,
   with 5-fold CV grouped by creator. Re-running the code reproduces the test scores exactly.
 - **Organic truth** = Instagram opt-in views (equal to public before a boost: ratio 1.001, 117 posts). The organic curve

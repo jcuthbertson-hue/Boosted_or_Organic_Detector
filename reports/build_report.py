@@ -95,7 +95,8 @@ def load():
                 EQ=j("results/vn_boost_equation.json") if os.path.exists("results/vn_boost_equation.json") else None,
                 PM=j("results/predict_missing.json") if os.path.exists("results/predict_missing.json") else None,
                 BS=j("results/boost_start_eval.json") if os.path.exists("results/boost_start_eval.json") else None,
-                MR=j("results/missing_research.json") if os.path.exists("results/missing_research.json") else None)
+                MR=j("results/missing_research.json") if os.path.exists("results/missing_research.json") else None,
+                F2=j("results/fresh2_eval.json") if os.path.exists("results/fresh2_eval.json") else None)
 
 
 # ---------------------------------------------------------------- small components
@@ -1072,6 +1073,46 @@ def scorecard(D):
                               ci[1] >= 0.90, f"range {pct(ci[0])[:-1]}–{pct(ci[1])}"))
         rows.append(row(name, help_, "Goal C5: the same C1 measures on posts published after the test window.", cells))
 
+    # 3b. fresh-2: the clean test after the locked test was retired (plan amendment 6), day-14 model, scored once
+    F2 = D.get("F2")
+    if F2 and F2.get("sets", {}).get("v2.2"):
+        m2 = F2["sets"]["v2.2"]["metrics"]
+        mk = {p: m2.get(f"{p}_h14") for p, _ in PLATFORMS}
+        alt = F2["sets"].get("v2.3", {}).get("metrics", {})
+        alt_txt = " ".join(f"{lab}: {pct(alt[f'{p}_h14']['precision'], 1)} of flags right, {pct(alt[f'{p}_h14']['material_recall'], 1)} of large boosts caught."
+                           for p, lab in PLATFORMS if f"{p}_h14" in alt)
+        rows.append(grp(f"Newest posts, {day(F2['fresh2_from'])} – {day(F2.get('scored_pub_to', F2['data_date']), True)} · day-14 model · first clean look",
+                        "Posts no model has seen (plan amendment 6), scored once on " + day(F2["data_date"], True) + ": "
+                        + " and ".join(f"{mk[p]['n']} {lab} ({mk[p]['n_pos']} paid)" for p, lab in PLATFORMS if mk[p])
+                        + ". Same goals as the test rows, judged on the measured value. The day-30 check follows from about Nov 6. "
+                        + ("The v2.3 candidate scored: " + alt_txt + " " if alt_txt else "")
+                        + "Decision rule: the version that passes more goals is used; a tie keeps v2.2. Result: " + F2.get("decision", {}).get("use", "v2.2") + "."))
+        for key, name, help_, what in (("material_recall", "Large boosts caught", "Same measure, on the newest posts", "large boosts caught"),
+                                       ("precision", "Flags that are really paid", "Same measure, on the newest posts", "flags that are really paid")):
+            cells = []
+            for p, lab in PLATFORMS:
+                v = mk[p]
+                if not v:
+                    cells.append(f'<td><div class="sc-v">{status(False)}</div><div class="sc-goal">no labels yet</div></td>')
+                    continue
+                ci = v["ci95"][key]
+                cells.append(cell(p1(v[key]), f"{lab}, posts published from {F2['fresh2_from']}, day-14 model: {what} {p1(v[key])}, 95% range {rng(ci)}, "
+                                              f"from {v['n_pos']} paid posts.", v[key] >= 0.90, f"goal 90%+ · range {pct(ci[0])[:-1]}–{pct(ci[1])}"))
+            rows.append(row(name, help_, "Goal C1 on posts published after the last test: 90% or more.", cells))
+        T2 = F2["sets"]["v2.2"]["targets"]
+        tg = {p: {"posts": T2[p].get("tagged_posts", 0), "flagged": T2[p].get("tagged_flagged", 0)} for p, _ in PLATFORMS if p in T2}
+        if tg:
+            cells = []
+            for p, lab in PLATFORMS:
+                t = tg.get(p, {"posts": 0, "flagged": 0})
+                cells.append(f'<td><div class="sc-v">' + num(f"{t['flagged']} of {t['posts']}" if t["posts"] else "none",
+                             f"{lab}: {t['posts']} newest posts whose ad carries the post ID, with the boost by day 12; {t['flagged']} flagged at day 14."
+                             + (" Most misses are boosts that start in the first days: with no views before the boost, there is no jump to see." if p == "Instagram" and t["posts"] > t["flagged"] else ""))
+                             + (status(t["flagged"] == t["posts"]) if t["posts"] else "") + '</div><div class="sc-goal">'
+                             + ("goal: all of them" if t["posts"] else "no tagged posts yet") + '</div></td>')
+            rows.append(row("Ad-tagged paid posts flagged", "Ads that carry the post ID, on the newest posts",
+                            "Goal C6 on posts published after the last test.", cells))
+
     # 4. both platforms
     cov = c4["coverage"]
     rows.append(grp("All posts", "Checks that cover both platforms together."))
@@ -1117,7 +1158,20 @@ def scorecard(D):
                          (f"Month-by-month, {lab} day-14 F1 ranged {f2(mf[p + '_h14']['f1_min'])}–{f2(mf[p + '_h14']['f1_max'])} and day-30 "
                           f"{f2(mf[p + '_h30']['f1_min'])}–{f2(mf[p + '_h30']['f1_max'])}. A post 14 days old has less of its history, "
                           "so the early model is weaker by design. Source: results/month_folds.json.") if p + "_h14" in mf else ""))
-    if all("n_pos" in c5[p] for p, _ in PLATFORMS):
+    F2 = D.get("F2")
+    if F2 and F2.get("sets", {}).get("v2.2"):
+        mi, mt = F2["sets"]["v2.2"]["metrics"].get("Instagram_h14"), F2["sets"]["v2.2"]["metrics"].get("Tiktok_h14")
+        ti = F2["sets"]["v2.2"]["targets"].get("Instagram", {})
+        acts.append(("no", "Newest posts, day 14: Instagram misses early boosts",
+                     (f"On posts published {day(F2['fresh2_from'])} – {day(F2.get('scored_pub_to', F2['data_date']))}, Instagram catches {pct(mi['material_recall'])} of large boosts "
+                      f"and flags {ti.get('tagged_flagged', 0)} of {ti.get('tagged_posts', 0)} tagged boosts. " if mi else "")
+                     + (f"TikTok catches all {mt['n_pos']} paid posts, but {round(100 * (1 - mt['precision']))} in 100 flags are wrong. " if mt else "")
+                     + f"v2.2 stays (tie with v2.3). The day-30 check on the same posts runs from about Nov 6.",
+                     f"Plan amendment 6: v2.2 and the v2.3 candidate were scored once on posts no model had seen. Both pass 2 goals, so "
+                     f"v2.2 stays. Most Instagram misses are boosts that start in the first days, when there are no views before the boost "
+                     f"to compare with. Small samples: {mi['n_pos'] if mi else 0} Instagram and {mt['n_pos'] if mt else 0} TikTok paid posts. "
+                     "Source: results/fresh2_eval.json."))
+    elif all("n_pos" in c5[p] for p, _ in PLATFORMS):
         acts.append(("note", "New-post check: met, but on few posts",
                      f"Only {c5['Instagram']['n_pos']} Instagram and {c5['Tiktok']['n_pos']} TikTok paid posts. The next clean test, on posts "
                      "published after Sep 24, can run from about Oct 21.",
@@ -1483,7 +1537,8 @@ def faq(D):
           f"<li>Locked test (posts {C['test_cutoff']} to {C.get('test_end', '2026-09-09')}): no model choice was made on it. "
           + ("v2.2 is the fourth look at it and the third at the fresh posts "
              if C.get("run") == "v22" else "v2 is the second look at it, and the fresh posts ")
-          + f"({C['fresh'][0]} to {C['fresh'][1]}) were scored once per version. Posts published after 2026-09-24 are the next clean test.</li>" if D["C2"] else
+          + f"({C['fresh'][0]} to {C['fresh'][1]}) were scored once per version. Posts published after 2026-09-24 are the next clean test "
+             "(fresh-2): day-14 scores on 2026-10-22 are in Targets; day-30 scores from about 2026-11-06.</li>" if D["C2"] else
           "<ul><li>No paid data in the inputs: only public views, likes, comments, shares and followers from days 0–30.</li>"
           f"<li>Locked test: trained on posts before {C['test_cutoff']}, tested once on later posts. Re-running the code gives the same scores.</li>")
          + "<li>Model and threshold chosen on train only, with cross-validation grouped by creator.</li>"

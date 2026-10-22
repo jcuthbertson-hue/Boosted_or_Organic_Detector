@@ -133,3 +133,17 @@ of their lines). From now on:
   scored once on fresh-2 with the C1-C6 rules; the one that passes more targets (ties: v2.2, already in use) is used.
 - Production stays on v2.2 until then.
 - Pre-2025 posts were checked as a possible holdout: none exist in the BIRA mart, so fresh-2 is the only clean option.
+
+### Fresh-2 result, day 14 (2026-10-22)
+
+Data pulled 2026-10-22 (sql/11-14, all posts, into data/fresh2/); posts published 2026-09-25 to 2026-10-09 with a day-14
+read: 188 Instagram (27 paid) and 191 TikTok (10 paid). Scored once with `detector.fresh2_eval`; v2.3 models were fitted
+on train before this (fit only, no test scoring).
+- v2.2: TikTok precision 71.4%, recall 100%, F1 0.833, calibration error 0.019; Instagram precision 90.0%, recall 66.7%,
+  large boosts caught 65.4%, F1 0.766, calibration error 0.076. Instagram tagged posts flagged: 2 of 8.
+- v2.3: TikTok precision 66.7%, recall 100%, F1 0.800; Instagram identical to v2.2 (same configuration picked).
+- Targets passed: v2.2 2, v2.3 2 (TikTok C3, and TikTok C6 by default: no tagged TikTok posts). Tie: **v2.2 stays.**
+- C4 (day 14 vs day 30) cannot be checked until the day-30 scores. Day-30 check: from about 2026-11-06, same posts.
+- Missed Instagram boosts are mostly boosts that start at publish (6 of 8 tagged boosts started on day 0-8 and were
+  missed); no change is made on the strength of this look, so it stays a clean result.
+

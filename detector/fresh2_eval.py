@@ -81,6 +81,9 @@ def main():
             tags = [g[(g.tag == 1) & g.spend_day.between(-3, H - 2)] for (p_, H), g in preds.items() if p_ == pf]
             tags = pd.concat(tags) if tags else pd.DataFrame()
             T[pf]["C6"] = bool(len(tags) == 0 or (tags.p >= tags.thr).all())
+            T[pf]["tagged_posts"] = int(tags.psrk.nunique()) if len(tags) else 0          # counts only; not targets
+            T[pf]["tagged_flagged"] = int(tags[tags.p >= tags.thr].psrk.nunique()) if len(tags) else 0
+        out.setdefault("scored_pub_to", str(max(g.pub.max() for g in preds.values()).date()))
         out["sets"][name] = {"metrics": res, "targets": T,
                              "targets_passed": int(sum(v for t in T.values() for k_, v in t.items() if k_.startswith("C")))}
     if out["sets"]:
